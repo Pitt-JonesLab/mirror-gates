@@ -24,17 +24,26 @@ repos:
       - id: pretty-format-json
         args: [--autofix]
 
+  - repo: https://github.com/pycqa/isort
+    rev: 5.11.5
+    hooks:
+      - id: isort
+        name: isort (python)
+
   - repo: https://github.com/psf/black
     rev: 23.3.0
     hooks:
-      - id: black
-        language_version: python3.9
-        args: [--verbose]
       - id: black-jupyter
         language_version: python3.9
+
+  - repo: https://github.com/PyCQA/docformatter
+    rev: v1.6.0
+    hooks:
+      - id: docformatter
+        additional_dependencies: [tomli]
+        args: [--in-place]
 
   - repo: https://github.com/pycqa/pydocstyle
     rev: 6.3.0
     hooks:
       - id: pydocstyle
-      args: [--ignore=D100]

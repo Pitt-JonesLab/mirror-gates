@@ -1,20 +1,17 @@
-"""
-Class for the virtual-swap routing :class:qiskit.transpiler.basepasses.TransformationPass
+"""Class for virtual-swap routing.
 
-The idea of virtual-swap is a swap gate that is performed by logical-physical qubit mapping.
-Rather than performing a SWAP gate, the virtual-swap, vSWAP, relabels the logical qubits,
-and in effect can be thought of as SWAP.
-
+Use :class:qiskit.transpiler.basepasses.TransformationPass.
+The idea of virtual-swap is a swap gate that is performed by logical-
+physical mapping. Rather than performing a SWAP, the virtual-swap,
+vSWAP, relabels the logical qubits, and in effect can be thought of as
+SWAP.
 """
 import random
-from qiskit.transpiler import TransformationPass
-from qiskit.dagcircuit import DAGCircuit, DAGNode
-
-import random
-from qiskit.transpiler.passes import TransformationPass
-from qiskit.dagcircuit import DAGCircuit, DAGNode
-from qiskit.circuit import Qubit
 from typing import Dict
+
+from qiskit.circuit import Qubit
+from qiskit.dagcircuit import DAGCircuit, DAGNode
+from qiskit.transpiler import TransformationPass
 
 
 class VirtualSwapAnnealing(TransformationPass):
@@ -90,7 +87,9 @@ class VirtualSwapAnnealing(TransformationPass):
     def _apply_virtual_swap(
         self, dag: DAGCircuit, node: DAGNode, layout_dict: Dict[Qubit, Qubit]
     ) -> None:
-        """Apply a virtual-swap at the given node in the DAG and update the layout.
+        """Apply a virtual-swap.
+
+        Apply a virtual-swap at the given node in the DAG and update the layout.
 
         Args:
             dag (DAGCircuit): DAG to map.
