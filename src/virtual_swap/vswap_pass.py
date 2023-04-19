@@ -1,25 +1,21 @@
 """
 Class for the virtual-swap routing :class:qiskit.transpiler.basepasses.TransformationPass
 
-The idea of virtual-swap is a swap gate that is performed by logical-physical qubit mapping. 
+The idea of virtual-swap is a swap gate that is performed by logical-physical qubit mapping.
 Rather than performing a SWAP gate, the virtual-swap, vSWAP, relabels the logical qubits,
-and in effect can be thought of as SWAP. 
+and in effect can be thought of as SWAP.
 
 """
 import random
-import numpy as np
 from qiskit.transpiler import TransformationPass
-from qiskit.transpiler import CouplingMap
 from qiskit.dagcircuit import DAGCircuit, DAGNode
-from qiskit.transpiler.passes import Depth
 
 import random
-from qiskit.transpiler import BasePass
 from qiskit.transpiler.passes import TransformationPass
 from qiskit.dagcircuit import DAGCircuit, DAGNode
-from qiskit.transpiler import Layout
 from qiskit.circuit import Qubit
 from typing import Dict
+
 
 class VirtualSwapAnnealing(TransformationPass):
     """Virtual-swap routing."""
@@ -46,7 +42,7 @@ class VirtualSwapAnnealing(TransformationPass):
             DAGCircuit: A mapped DAG.
         """
         layout_dict = {qubit: qubit for qubit in dag.qubits}
-        
+
         # Simulated annealing loop
         for i in range(100):
             # Make a deep copy of the layout and DAGCircuit
@@ -73,7 +69,9 @@ class VirtualSwapAnnealing(TransformationPass):
 
     def _random_2q_gate(self, dag: DAGCircuit) -> DAGNode:
         """Choose a random 2-qubit gate in the DAG."""
-        two_qubit_nodes = [node for node in dag.nodes() if node.type == 'op' and len(node.qargs) == 2]
+        two_qubit_nodes = [
+            node for node in dag.nodes() if node.type == "op" and len(node.qargs) == 2
+        ]
         return random.choice(two_qubit_nodes)
 
     def _cost(self, dag: DAGCircuit, layout_dict: Dict[Qubit, Qubit]) -> float:
@@ -89,7 +87,9 @@ class VirtualSwapAnnealing(TransformationPass):
             probability = min(1, current_cost / new_cost)
             return random.random() < probability
 
-    def _apply_virtual_swap(self, dag: DAGCircuit, node: DAGNode, layout_dict: Dict[Qubit, Qubit]) -> None:
+    def _apply_virtual_swap(
+        self, dag: DAGCircuit, node: DAGNode, layout_dict: Dict[Qubit, Qubit]
+    ) -> None:
         """Apply a virtual-swap at the given node in the DAG and update the layout.
 
         Args:
@@ -97,14 +97,17 @@ class VirtualSwapAnnealing(TransformationPass):
             node (DAGNode): Node at which to apply the virtual-swap.
             layout_dict (Dict[Qubit, Qubit]): Current layout of qubits.
         """
-        if node.type != 'op' or len(node.qargs) != 2:
+        if node.type != "op" or len(node.qargs) != 2:
             return
 
         # Update the layout dictionary
-        layout_dict[node.qargs[0]], layout_dict[node.qargs[1]] = layout_dict[node.qargs[1]], layout_dict[node.qargs[0]]
+        layout_dict[node.qargs[0]], layout_dict[node.qargs[1]] = (
+            layout_dict[node.qargs[1]],
+            layout_dict[node.qargs[0]],
+        )
 
         # Propagate the changes through the remaining gates in the DAG
         for successor_node in dag.successors(node):
-            if successor_node.type == 'op':
+            if successor_node.type == "op":
                 new_qargs = [layout_dict[q] for q in successor_node.qargs]
                 successor_node.qargs = new_qargs

@@ -22,13 +22,13 @@ when get down to evluating the inputs, look at the slack on each input + and the
 determines how many SWAPs are on critical path
 
 
-<!-- 
+<!--
 # interesting idea,
 # rather than starting with all as 2sqiswap, could start with all random
 
 # build something modular
 # can compare between qiskit, brute force (MC), SA, look ahead, etc.
-# the idea I like is to work backwards, continuously checking the sub, then 
+# the idea I like is to work backwards, continuously checking the sub, then
 
 # idea 1, start with a solved circuit and make changes to it continuously fixing but trying to change cost
 
