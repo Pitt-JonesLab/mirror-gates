@@ -65,7 +65,11 @@ from weylchamber import c1c2c3
 
 
 class VirtualSwap(TransformationPass):
-    """Use simulated annealing to route quantum circuit."""
+    """Use simulated annealing to route quantum circuit.
+
+    Assumes input circuit is written in terms of CX gates. Output
+    circuit is written in terms of sqiSWAP gates.
+    """
 
     start_temp = 5
     rate_of_decay = 0.01
@@ -88,8 +92,12 @@ class VirtualSwap(TransformationPass):
     def run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the VirtualSwapAnnealing pass on `dag`."""
         logging.info(f"Initial:\n{dag_to_circuit(dag).draw(fold=-1)}")
+
         accepted_dag, accepted_cost = self._cost_cleanup(dag)
         logging.info(f"Initial:\n{dag_to_circuit(accepted_dag).draw(fold=-1)}")
+
+        best_dag = None
+        best_cost = None
         current_temp = self.start_temp
         iterations = 0
         scores = []
@@ -98,6 +106,11 @@ class VirtualSwap(TransformationPass):
             working_dag, working_cost = self._SA_iter(accepted_dag)
             logging.info(f"Working:\n{dag_to_circuit(working_dag).draw(fold=-1)}")
             logging.info(f"Working: {working_cost}")
+
+            if best_cost is None or working_cost < best_cost:
+                best_dag = working_dag
+                best_cost = working_cost
+                logging.info(f"Best: {best_cost}")
 
             if self._SA_accept(working_cost, accepted_cost, current_temp):
                 accepted_dag = working_dag
@@ -120,7 +133,7 @@ class VirtualSwap(TransformationPass):
             plt.show()
         self.property_set["scores"] = scores
 
-        return accepted_dag
+        return best_dag
 
     def _SA_iter(self, dag: DAGCircuit):
         """Perform one iteration of the simulated annealing algorithm.
