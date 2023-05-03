@@ -46,24 +46,28 @@ This requires an intermediate step between SA iterations to
 1. reconsolidate blocks, 2. enforce routing, 3. recompute critical path cost.
         
 """
-from ast import Tuple
+from typing import Tuple
 import random
 import numpy as np
 from qiskit.transpiler.passmanager import PassManager
-from qiskit.dagcircuit import DAGCircuit, DAGNode, DAGOpNode
+from qiskit.dagcircuit import DAGCircuit, DAGOpNode, DAGOutNode
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks
 from qiskit.transpiler.passes.routing import StochasticSwap
 from qiskit.transpiler.passes import CountOpsLongestPath
-from logging import logging
+import logging
+from weylchamber import c1c2c3
+from qiskit.circuit.library import iSwapGate, CXGate
+from copy import deepcopy
+from qiskit.converters import dag_to_circuit
 
 class VirtualSwap(TransformationPass):
     """Use simulated annealing to route quantum circuit."""
-    start_temp = 100
+    start_temp = 5
     rate_of_decay = 0.01
     threshold_temp = 1
 
-    def __init__(self, coupling_map, neighbor_func='rand', seed=42, visualize=False):
+    def __init__(self, coupling_map, neighbor_func='rand', seed=None, visualize=False):
         """Virtual-swap routing initializer.
 
         Args:
@@ -77,28 +81,26 @@ class VirtualSwap(TransformationPass):
         self.seed = seed
         self.visualize = visualize
 
-    def run(self, dag):
+    def run(self, dag:DAGCircuit) -> DAGCircuit:
         """Run the VirtualSwapAnnealing pass on `dag`."""
+        logging.info(f"Initial:\n{dag_to_circuit(dag).draw(fold=-1)}")
         accepted_dag, accepted_cost = self._cost_cleanup(dag)
+        logging.info(f"Initial:\n{dag_to_circuit(accepted_dag).draw(fold=-1)}")
         current_temp = self.start_temp
         iterations = 0
         scores = []
 
         while current_temp > self.threshold_temp:
             working_dag, working_cost = self._SA_iter(accepted_dag)
+            logging.info(f"Working:\n{dag_to_circuit(working_dag).draw(fold=-1)}")
+            logging.info(f"Working: {working_cost}")
 
-            if working_cost < accepted_cost:
+            if self._SA_accept(working_cost, accepted_cost, current_temp):
                 accepted_dag = working_dag
                 accepted_cost = working_cost
-
+                logging.info(f"Accepted: {accepted_cost}")
             else:
-                # might be backwards
-                probability = np.exp((accepted_cost - working_cost) / current_temp)
-                logging.debug(f"Probability: {probability}")
-
-                if random.random() < probability:
-                    accepted_dag = working_dag
-                    accepted_cost = working_cost
+                logging.info(f"Rejected: {working_cost}")
 
             scores.append(accepted_cost)
             iterations += 1
@@ -111,10 +113,11 @@ class VirtualSwap(TransformationPass):
             plt.xlabel('Iteration')
             plt.ylabel('Cost')
             plt.show()
+        self.property_set['scores'] = scores
 
         return accepted_dag
 
-    def _SA_iter(self, dag):
+    def _SA_iter(self, dag:DAGCircuit):
         """Perform one iteration of the simulated annealing algorithm.
 
         Args:
@@ -123,8 +126,10 @@ class VirtualSwap(TransformationPass):
         Returns:
             Tuple[DAGCircuit, float]: (working_dag, working_cost)
         """
+        working_dag = deepcopy(dag)
+
         # pick gate to replace
-        sub_node = self.get_random_node(dag)
+        sub_node = self._get_random_node(working_dag)
 
         # make change in a working copy of the DAG
         working_dag = self._transform_CNS(sub_node, working_dag)
@@ -132,8 +137,17 @@ class VirtualSwap(TransformationPass):
         # compute cost of working_dag
         working_dag, working_cost = self._cost_cleanup(working_dag)
         return working_dag, working_cost
+
+    def _SA_accept(self, working_cost, accepted_cost, current_temp) -> bool:
+        """Return True if we should accept the working state."""
+        if working_cost < accepted_cost:
+            return True
+        else:
+            probability = np.exp((accepted_cost - working_cost) / current_temp)
+            logging.info(f"Probability: {probability}")
+            return random.random() < probability
     
-    def _get_random_node(self, dag) -> DAGOpNode:
+    def _get_random_node(self, dag:DAGCircuit) -> DAGOpNode:
         """Return a node to take SA sub on.
         
         Args:
@@ -143,17 +157,37 @@ class VirtualSwap(TransformationPass):
             DAGOpNode: Node to take SA sub on.
         """
         # must be (0.5, 0, 0) or (0.5, 0.5, 0) for defined sub rules
-        raise NotImplementedError
-        if self.neighbor_func == 'rand':
-            return self._random_2q_gate(dag)
-        elif self.neighbor_func == 'forward':
-            return self._random_2q_gate_forward(dag)
-        elif self.neighbor_func == 'backward':
-            return self._random_2q_gate_backward(dag)
+        # its likely that some consolidation gives (x, 0, 0)
+        # let's just mke sure its not very often
+        # Ensure the sub rules are (0.5, 0, 0) or (0.5, 0.5, 0), and consolidation gives (x, 0, 0)
+        ###########################
+        valid_sub_rules = {(0.5, 0, 0), (0.5, 0.5, 0)}
+        valid_consolidations = valid_sub_rules | {(0.5, 0.5, 0.5)}
+        l1 = [c1c2c3(np.array(sel.op)) for sel in dag.op_nodes()]
+        count1 = sum(l in valid_sub_rules for l in l1)
+        count2 = sum(l in valid_consolidations for l in l1)
+        count3 = len(dag.op_nodes())
+        logging.info(f"CX+iSWAP count: {count1}")
+        logging.info(f"CX+iSWAP+SWAP count: {count2}")
+        logging.info(f"Total count: {count3}")
+        ############################
 
-    def _transform_CNS(self, node, dag) -> DAGCircuit:
+        selected_node = None
+        while selected_node is None or c1c2c3(np.array(selected_node.op)) not in valid_sub_rules:
+            if self.neighbor_func == 'rand':
+                selected_node = random.choice(dag.op_nodes())
+            elif self.neighbor_func == 'forward':
+                raise NotImplementedError
+            elif self.neighbor_func == 'backward':
+                raise NotImplementedError
+        
+        assert len(selected_node.qargs) == 2
+        assert c1c2c3(np.array(selected_node.op)) in [(0.5, 0, 0), (0.5, 0.5, 0)]
+        return selected_node
+    
+    def _transform_CNS(self, node:DAGOpNode, dag:DAGCircuit) -> DAGCircuit:
         """Transform CX into iSWAP+SWAP or iSWAP into CX+SWAP.
-        Applies changes to 'dag' in a deep copy. Uses virtual-swap; no real SWAPs added.
+        Applies changes to 'dag' in-place. Uses virtual-swap; no real SWAPs added.
         Instead of SWAP, update layout and gate placements.
 
         Args:
@@ -163,10 +197,37 @@ class VirtualSwap(TransformationPass):
         Returns:
             DAGCircuit: Transformed DAG.
         """
-        raise NotImplementedError
+        # 1. transform node in temp_dag
+        # XXX will need to define the sub rules more exactly
+        coord = c1c2c3(np.array(node.op))
+        if coord == (0.5, 0, 0):
+            # transform CX into iSWAP
+            # XXX not preserving unitary correctness
+            dag.substitute_node(node, iSwapGate(), inplace=True)
+        elif coord == (0.5, 0.5, 0):
+            # transform iSWAP into CX
+            # XXX not preserving unitary correctness
+            dag.substitute_node(node, CXGate(), inplace=True)
+        else:
+            raise ValueError(f"Invalid node: {node}")
+        
+        # 2. propagate changes down the DAG
+        # NOTE there is definitely a better way to do this
+        # find clever use of dag.substitute_node_with_dag
 
+        # placement of the virtual-swap gate
+        # copy maybe not necessary, keep for safety :)
+        working_layout = self.property_set['layout'].copy()
+        working_layout.swap(node.qargs[0], node.qargs[1])
 
-    def _cost_cleanup(self, dag) -> Tuple[DAGCircuit, float]:
+        # update gate-wire placement
+        for successor_node in dag.descendants(node):
+            if isinstance(successor_node, DAGOpNode):
+                successor_node.qargs = [working_layout[qarg.index] for qarg in successor_node.qargs]
+        
+        return dag
+
+    def _cost_cleanup(self, dag:DAGCircuit) -> Tuple[DAGCircuit, float]:
         """Cost function with intermediate steps.
         
         Args:
@@ -175,15 +236,57 @@ class VirtualSwap(TransformationPass):
         Returns:
             Tuple[DAGCircuit, float]: (dag, cost)
         """
-        pass_manager = PassManager()
-        pass_manager.append([Collect2qBlocks(), ConsolidateBlocks(force_consolidate=True)])
+        # NOTE potenially very bad to have nested transpiler passes
+        # https://github.com/Qiskit/qiskit-terra/blob/main/qiskit/transpiler/passes/layout/sabre_layout.py#L345
+        # this example shows us that we can use the property_set to pass information between passes
         
-        # NOTE, StochasticSwap not necessarily best choice here.
-        pass_manager.append(StochasticSwap(self.coupling_map, seed=self.seed))
+        # avoids overhead of converting to/from DAGCircuit 
+        swap_pass = StochasticSwap(self.coupling_map, seed=self.seed)
+        swap_pass.property_set = self.property_set
+        dag = swap_pass.run(dag)
+
+        routed_qc = dag_to_circuit(dag)
+        logging.info(f"Routed:\n{routed_qc.draw(fold=-1)}")
+
+        collect_pass = Collect2qBlocks()
+        collect_pass.property_set = swap_pass.property_set
+        dag = collect_pass.run(dag)       
+
+        consolidate_pass = ConsolidateBlocks(force_consolidate=True)
+        consolidate_pass.property_set = collect_pass.property_set
+        dag = consolidate_pass.run(dag)
         
-        # NOTE, using CountOpsLongestPath is valid is every block is 1 cycle.
-        pass_manager.append(CountOpsLongestPath())
-        
-        dag = pass_manager.run(dag)
-        cost = pass_manager.property_set['count_ops_longest_path']
+        # XXX this is currently broken because of the way consolidate pass works
+        # better would be to check for each unitary, its decomposition cost
+        cost_pass = CountOpsLongestPath()
+        cost_pass.property_set = consolidate_pass.property_set
+        cost_pass.run(dag) #doesn't return anything, just updates property_set
+
+        cost_dict = cost_pass.property_set['count_ops_longest_path']
+        cost = sum(3*val if key == 'swap' else 2*val for key, val in cost_dict.items())
         return dag, cost
+    
+
+if __name__ == "__main__":
+    from virtual_swap.vswap_pass2 import VirtualSwap
+    from qiskit import QuantumCircuit
+    # from qiskit.test import QiskitTestCase
+    from qiskit.transpiler import CouplingMap, PassManager
+    from qiskit.transpiler.passes import Unroller, TrivialLayout, ApplyLayout
+
+    # build a toffoli
+    qc = QuantumCircuit(3)
+    qc.ccx(0, 1, 2)
+
+    # build a 2x2 square coupling map
+    coupling = CouplingMap.from_line(4)
+
+    # run the pass
+    pm = PassManager()
+    # need some basic unroll and layout
+    pm.append([Unroller(['u', 'cx']), TrivialLayout(coupling), ApplyLayout()])
+    pm.append(VirtualSwap(coupling))
+    # set debug logging
+    logging.basicConfig(level=logging.INFO)
+    new_circ = pm.run(qc)
+    new_circ.draw(output='mpl')
