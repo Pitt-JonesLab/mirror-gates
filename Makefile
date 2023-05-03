@@ -7,7 +7,7 @@ init:
 	$(PYTHON_VERSION) -m venv .venv
 	$(PIP) install --upgrade pip
 	$(PIP) install -e .[dev]
-	$(PIP) pre-commit install
+	$(PRE_COMMIT) install
 
 test:
 	$(PIP) install -e .[test] --quiet

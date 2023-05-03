@@ -71,8 +71,8 @@ class VirtualSwap(TransformationPass):
     circuit is written in terms of sqiSWAP gates.
     """
 
-    start_temp = 5
-    rate_of_decay = 0.01
+    start_temp = 10
+    rate_of_decay = 0.001
     threshold_temp = 1
 
     def __init__(self, coupling_map, neighbor_func="rand", seed=None, visualize=False):
