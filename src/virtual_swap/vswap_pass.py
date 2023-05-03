@@ -1,245 +1,281 @@
-"""Class for virtual-swap routing.
+"""Second implementation of virtual-swap routing.
 
-Use :class:qiskit.transpiler.basepasses.TransformationPass.
-The idea of virtual-swap is a swap gate that is performed by logical-
-physical mapping. Rather than performing a SWAP, the virtual-swap,
-vSWAP, relabels the logical qubits, and in effect can be thought of as
-SWAP.
+Ref: https://github.com/TheAlgorithms/Python/blob/master/searches/simulated_annealing.py
 
-Simple strategy: stay in CNOT + SWAP basis. Then, rule is CX has same cost as
-Cx+SWAP (CNS). Then, when evaluating mapping, just use CNS=depth 1 rule.
+Search problem is initialized by the initial placement of qubits. Important, we want
+to decouple the initial placement from the routing problem. If done correctly, we can
+use routing algorithm to assist finding the initial placement (forward-backward pass).
 
-Each loop, choose a random CX, and turn it into CNS. (Then need to recompute routing.)
+The cost function is the critical path length of the circuit-
+careful to use normalized gate durations.
+
+In example SA algorithm, using neighbors of index for next state.
+We can either (a) move only backwards, (b) move only forwards, or (c) randomly move.
+
+Assume given a circuit with only CX gates. Valid moves are:
+    (a) decompose CX gate into iSWAP + SWAP
+    (b) decompose CX gate into sqiSWAP + sqiSWAP
+    _____________
+    (c) decompose iSWAP into CX + SWAP
+    (d) decompose sqiSWAP + sqiSWAP into CX
+
+Unclear to me yet best way to keep track of intermediate representations.
+On one hand, we prefer to keep everything as CX gates.
+Better, is in terms of (c1,c2,c3) coordinates.
+However, with coordinates, don't know if sub is (a) or (b) since equivalent.
+Requires consolidate blocks, which is a good idea anyway.
+
+Alternatively, rather than placing a SWAP in subs (a) and (c); instead,
+just update the DAG by propagating changes on gates on updated layout.
+I like this method because the SWAP gate is not counted in the depth of the circuit.
+
+So each 2Q gate will either be (0.5, 0, 0) or (.5, .5, 0) in (c1, c2, c3) coordinates.
+We can interchange between them by applying a virtual-swap.
+
+Requires real-SWAP gates throughout circuit for routing. We can't sub these;
+however, the SWAPs should be part of the consolidate blocks pass.
+
+Finish by making any remaining CX (0.5, 0, 0) use the sqiSWAP + sqiSWAP decomposition.
+
+Edge cases:
+    1. Coordinate shows up we don't know how to handle
+        - not sure yet, need to see an example. We can just decompose into sqiSWAP.
+
+Propagating gate changes down DAG breaks assumption that gates are physical.
+This requires an intermediate step between SA iterations to
+1. reconsolidate blocks, 2. enforce routing, 3. recompute critical path cost.
 """
+import logging
 import random
-from typing import Dict
-import numpy as np
-from qiskit import QuantumCircuit
-from qiskit.converters import circuit_to_dag
-
-from qiskit.circuit import Qubit
-from qiskit.dagcircuit import DAGCircuit, DAGNode, DAGOpNode
-from qiskit.transpiler import TransformationPass
-from qiskit.transpiler.passes.routing import StochasticSwap
-
-
 from copy import deepcopy
+from typing import Tuple
 
-class VirtualSwapAnnealing(TransformationPass):
-    """Virtual-swap routing."""
+import numpy as np
+from qiskit.circuit.library import CXGate, iSwapGate
+from qiskit.converters import dag_to_circuit
+from qiskit.dagcircuit import DAGCircuit, DAGOpNode
+from qiskit.transpiler.basepasses import TransformationPass
+from qiskit.transpiler.passes import (
+    Collect2qBlocks,
+    ConsolidateBlocks,
+    CountOpsLongestPath,
+)
+from qiskit.transpiler.passes.routing import StochasticSwap
+from weylchamber import c1c2c3
 
-    def __init__(self, coupling_map, seed=None):
+
+class VirtualSwap(TransformationPass):
+    """Use simulated annealing to route quantum circuit."""
+
+    start_temp = 5
+    rate_of_decay = 0.01
+    threshold_temp = 1
+
+    def __init__(self, coupling_map, neighbor_func="rand", seed=None, visualize=False):
         """Virtual-swap routing initializer.
 
         Args:
             coupling_map (CouplingMap): Directed graph represented a coupling map.
+            neighbor_func (str): ['rand', 'forward', 'backward'].
             seed (int): Random seed for the stochastic part of the algorithm.
         """
         super().__init__()
         self.coupling_map = coupling_map
+        self.neighbor_func = neighbor_func
         self.seed = seed
-        # random.seed(self.seed)
+        self.visualize = visualize
 
     def run(self, dag: DAGCircuit) -> DAGCircuit:
-        """Run the VirtualSwapAnnealing pass on `dag`.
+        """Run the VirtualSwapAnnealing pass on `dag`."""
+        logging.info(f"Initial:\n{dag_to_circuit(dag).draw(fold=-1)}")
+        accepted_dag, accepted_cost = self._cost_cleanup(dag)
+        logging.info(f"Initial:\n{dag_to_circuit(accepted_dag).draw(fold=-1)}")
+        current_temp = self.start_temp
+        iterations = 0
+        scores = []
+
+        while current_temp > self.threshold_temp:
+            working_dag, working_cost = self._SA_iter(accepted_dag)
+            logging.info(f"Working:\n{dag_to_circuit(working_dag).draw(fold=-1)}")
+            logging.info(f"Working: {working_cost}")
+
+            if self._SA_accept(working_cost, accepted_cost, current_temp):
+                accepted_dag = working_dag
+                accepted_cost = working_cost
+                logging.info(f"Accepted: {accepted_cost}")
+            else:
+                logging.info(f"Rejected: {working_cost}")
+
+            scores.append(accepted_cost)
+            iterations += 1
+            current_temp *= 1 - self.rate_of_decay
+
+        # visualize scores
+        if self.visualize:
+            import matplotlib.pyplot as plt
+
+            plt.plot(range(iterations), scores)
+            plt.xlabel("Iteration")
+            plt.ylabel("Cost")
+            plt.show()
+        self.property_set["scores"] = scores
+
+        return accepted_dag
+
+    def _SA_iter(self, dag: DAGCircuit):
+        """Perform one iteration of the simulated annealing algorithm.
 
         Args:
-            dag (DAGCircuit): DAG to map.
+            dag (DAGCircuit): DAG to perform SA on.
 
         Returns:
-            DAGCircuit: A mapped DAG.
+            Tuple[DAGCircuit, float]: (working_dag, working_cost)
         """
-        dag = self._enforce_routing(dag)
-        current_cost = self._cost(dag)
-        print(f"Initial cost: {current_cost}")
+        working_dag = deepcopy(dag)
 
-        # Simulated annealing loop
-        for _ in range(20):
-            # Make a deep copy of DAGCircuit
-            working_dag = deepcopy(dag)
+        # pick gate to replace
+        sub_node = self._get_random_node(working_dag)
 
-            # Choose a random CX in the DAG
-            node = self._random_2q_gate(working_dag)
+        # make change in a working copy of the DAG
+        working_dag = self._transform_CNS(sub_node, working_dag)
 
-            # with some probability, SWAP qubits in mapping and reroute instead
-            if random.random() < 0.5:
-                # Turn CNOT into CNOT + SWAP
-                self._transform_CNS(node, working_dag)
-            else:
-                # update layout, swap 2 random qubits
-                layout = self.property_set["layout"]
-                qubit1, qubit2 = random.sample(qubits, 2)
-                layout.swap(qubit1, qubit2)                
-                print(f"Swapped {qubit1} and {qubit2} in mapping")
+        # compute cost of working_dag
+        working_dag, working_cost = self._cost_cleanup(working_dag)
+        return working_dag, working_cost
 
-            # reroute the circuit, must be physically valid before cost
-            # this is where I get conceptually confused
-            working_dag = self._enforce_routing(working_dag)
-
-            # Calculate cost of the current and new mapping
-            new_cost = self._cost(working_dag) 
-            from qiskit.converters import dag_to_circuit
-            print(dag_to_circuit(working_dag).draw())
-            print(f"Current cost: {current_cost}")
-            print(f"New cost: {new_cost}")
-
-            # Decide whether to accept the new mapping
-            if self._accept(new_cost, current_cost, T=0):
-                print("Accepted")
-                # Update the current mapping and DAGCircuit
-                dag = working_dag
-                current_cost = new_cost
-
-            else:
-                print("Not accepted")
-
-        print(f"Final cost: {current_cost}")
-        return dag
-
-    def _random_2q_gate(self, dag: DAGCircuit) -> DAGOpNode:
-        """Choose a random 2-qubit gate in the DAG."""
-        two_qubit_nodes = [
-            node for node in dag.op_nodes() if node.name == "cx"
-        ]
-        return random.choice(two_qubit_nodes)
-
-    def _enforce_routing(self, dag):
-        """Enforce the routing of the DAGCircuit."""
-        layout = self.property_set["layout"]
-        router = StochasticSwap(self.coupling_map, trials=20, seed=self.seed, initial_layout=layout)
-        return router.run(dag)
-    
-    def _transform_CNS(self, node: DAGOpNode, dag: DAGCircuit) -> None:
-        """Replace a CNOT gate with a CNS gate."""
-        cns = QuantumCircuit(2)
-        cns.cx(0, 1)
-        cns.swap(0, 1)
-        cns.swap(0,1)
-        cns = circuit_to_dag(cns)
-
-        # Apply the CNS gate
-        dag.substitute_node_with_dag(node, cns)
-        # I think the substituted node still has successor of the original node
-        print(node.qargs)
-    
-    def _cost(self, dag:DAGCircuit) -> float:
-        longest_path = dag.longest_path()[1:-1] # remove input/output nodes
-        # only want 2q gates
-        longest_path = [node for node in longest_path if len(node.qargs) == 2]
-        cost = 0
-        index = 0
-        while index < len(longest_path):
-            if longest_path[index].name == 'cx':
-                cost += 2
-                index += 1
-
-                # check if successor is a swap on the same qubits
-                if index == len(longest_path):
-                    break
-                if longest_path[index].name == 'swap':
-                    if set(longest_path[index].qargs) == set(longest_path[index-1].qargs):
-                        index += 1
-
-            elif longest_path[index].name == 'swap':
-                # if at end of list, ignore
-                if index + 1 == len(longest_path):
-                    break
-                cost += 3
-                index += 1
-        return cost
-    
-    # # FIXME, code uses longest path before edge costs
-    # def _cost(self, dag: DAGCircuit, layout_dict: Dict[Qubit, Qubit]) -> float:
-    #     """Calculate the cost of the current mapping.
-        
-    #     Swap gates at the end of the circuit are not counted.
-    #     CX = 2, CNS = 2, SWAP = 3
-    #     """
-    #     longest_path = dag.longest_path()
-    #     from qiskit.converters import dag_to_circuit
-    #     print(dag_to_circuit(dag).draw())
-    #     cost = 0
-    #     skip_next = False # tracking for CNS
-    #     for node in longest_path:
-    #         if not isinstance(node, DAGOpNode):
-    #             continue
-
-    #         if node.name == 'cx':
-    #             cost += 2
-                
-    #             # check if successor is a swap on the same qubits
-    #             successors = list(dag.successors(node))
-    #             if len(successors) == 1 and successors[0].name == 'swap':
-    #                 if set(successors[0].qargs) == set(node.qargs):
-    #                     skip_next = True
-    #                     continue
-
-    #         elif node.name == 'swap' and not skip_next:
-
-    #             # check if SWAP's successor is DAGOutNodes
-    #             successors = list(dag.successors(node))
-    #             if len(successors) == 1 and isinstance(successors[0], DAGOpNode):
-    #                 break
-    #             cost += 3
-            
-    #         skip_next = False
-            
-    #     return cost
-
-
-    def _accept(self, new_cost: float, current_cost: float, T:float) -> bool:
-        """Decide whether to accept the new mapping."""
-        if new_cost <= current_cost:
+    def _SA_accept(self, working_cost, accepted_cost, current_temp) -> bool:
+        """Return True if we should accept the working state."""
+        if working_cost < accepted_cost:
             return True
         else:
-            # simulated annealing, P(accept) = exp(-delta_cost / T)
-            prob = np.exp(-(new_cost - current_cost) / T)
-            print(f"Probability of accepting: {prob}")
-            return random.random() < prob
-            
-    # def _apply_virtual_swap(
-    #         self, dag: DAGCircuit, node: DAGNode, layout_dict: Dict[Qubit, Qubit]
-    # ) -> None:
-    #     """Apply a virtual swap.
-        
-    #     Rather than messing with the DAG and qubit layouts, we simply apply a SWAP gate, 
-    #     importantly, this SWAP should not be counted in the depth of the circuit.
+            probability = np.exp((accepted_cost - working_cost) / current_temp)
+            logging.info(f"Probability: {probability}")
+            return random.random() < probability
 
-    #     After injecting the SWAP gate, need to recompute routing. We should not allow the case
-    #     where the SWAP gate gets immediately undone by another SWAP gate.
-    #     """
-    #     # find the node, split the circuit into two parts, and insert the SWAP gate
-    #     descendants = dag.descendants(node)
-    #     for n in descendants:
-    #         if isinstance(n, DAGOpNode):
-    #             dag.remove_op_node(n)
-
-
-    def _apply_virtual_swap(
-        self, dag: DAGCircuit, node: DAGOpNode, layout_dict: Dict[Qubit, Qubit]
-    ) -> None:
-        """Apply a virtual-swap.
-
-        Apply a virtual-swap at the given node in the DAG and update the layout.
+    def _get_random_node(self, dag: DAGCircuit) -> DAGOpNode:
+        """Return a node to take SA sub on.
 
         Args:
-            dag (DAGCircuit): DAG to map.
-            node (DAGNode): Node at which to apply the virtual-swap.
-            layout_dict (Dict[Qubit, Qubit]): Current layout of qubits.
+            dag (DAGCircuit): DAG to pick node from.
+
+        Returns:
+            DAGOpNode: Node to take SA sub on.
         """
-        if len(node.qargs) != 2:
-            return
+        # must be (0.5, 0, 0) or (0.5, 0.5, 0) for defined sub rules
+        # its likely that some consolidation gives (x, 0, 0)
+        # let's just mke sure its not very often
+        # Ensure the sub rules are (0.5, 0, 0) or (0.5, 0.5, 0),
+        # and consolidation gives (x, 0, 0)
+        ###########################
+        valid_sub_rules = {(0.5, 0, 0), (0.5, 0.5, 0)}
+        valid_consolidations = valid_sub_rules | {(0.5, 0.5, 0.5)}
+        l1 = [c1c2c3(np.array(sel.op)) for sel in dag.op_nodes()]
+        count1 = sum(el in valid_sub_rules for el in l1)
+        count2 = sum(el in valid_consolidations for el in l1)
+        count3 = len(dag.op_nodes())
+        logging.info(f"CX+iSWAP count: {count1}")
+        logging.info(f"CX+iSWAP+SWAP count: {count2}")
+        logging.info(f"Total count: {count3}")
+        ############################
 
-        # Update the layout dictionary
-        layout_dict[node.qargs[0]], layout_dict[node.qargs[1]] = (
-            layout_dict[node.qargs[1]],
-            layout_dict[node.qargs[0]],
+        selected_node = None
+        while (
+            selected_node is None
+            or c1c2c3(np.array(selected_node.op)) not in valid_sub_rules
+        ):
+            if self.neighbor_func == "rand":
+                selected_node = random.choice(dag.op_nodes())
+            elif self.neighbor_func == "forward":
+                raise NotImplementedError
+            elif self.neighbor_func == "backward":
+                raise NotImplementedError
+
+        assert len(selected_node.qargs) == 2
+        assert c1c2c3(np.array(selected_node.op)) in [(0.5, 0, 0), (0.5, 0.5, 0)]
+        return selected_node
+
+    def _transform_CNS(self, node: DAGOpNode, dag: DAGCircuit) -> DAGCircuit:
+        """Transform CX into iSWAP+SWAP or iSWAP into CX+SWAP.
+
+        Applies changes to 'dag' in-place. Uses virtual-swap; no real SWAPs added.
+        Instead of SWAP, update layout and gate placements.
+
+        Args:
+            node_index (int): Index of node to transform.
+            dag (DAGCircuit): DAG to transform.
+
+        Returns:
+            DAGCircuit: Transformed DAG.
+        """
+        # 1. transform node in temp_dag
+        # XXX will need to define the sub rules more exactly
+        coord = c1c2c3(np.array(node.op))
+        if coord == (0.5, 0, 0):
+            # transform CX into iSWAP
+            # XXX not preserving unitary correctness
+            dag.substitute_node(node, iSwapGate(), inplace=True)
+        elif coord == (0.5, 0.5, 0):
+            # transform iSWAP into CX
+            # XXX not preserving unitary correctness
+            dag.substitute_node(node, CXGate(), inplace=True)
+        else:
+            raise ValueError(f"Invalid node: {node}")
+
+        # 2. propagate changes down the DAG
+        # NOTE there is definitely a better way to do this
+        # find clever use of dag.substitute_node_with_dag
+
+        # placement of the virtual-swap gate
+        # copy maybe not necessary, keep for safety :)
+        working_layout = self.property_set["layout"].copy()
+        working_layout.swap(node.qargs[0], node.qargs[1])
+
+        # update gate-wire placement
+        for successor_node in dag.descendants(node):
+            if isinstance(successor_node, DAGOpNode):
+                successor_node.qargs = [
+                    working_layout[qarg.index] for qarg in successor_node.qargs
+                ]
+
+        return dag
+
+    def _cost_cleanup(self, dag: DAGCircuit) -> Tuple[DAGCircuit, float]:
+        """Cost function with intermediate steps.
+
+        Args:
+            dag (DAGCircuit): DAG to compute cost of.
+
+        Returns:
+            Tuple[DAGCircuit, float]: (dag, cost)
+        """
+        # NOTE potenially very bad to have nested transpiler passes
+        # https://github.com/Qiskit/qiskit-terra/blob/main/qiskit/transpiler/passes/layout/sabre_layout.py#L345
+        # use the property_set to pass information between passes
+
+        # avoids overhead of converting to/from DAGCircuit
+        swap_pass = StochasticSwap(self.coupling_map, seed=self.seed)
+        swap_pass.property_set = self.property_set
+        dag = swap_pass.run(dag)
+
+        routed_qc = dag_to_circuit(dag)
+        logging.info(f"Routed:\n{routed_qc.draw(fold=-1)}")
+
+        collect_pass = Collect2qBlocks()
+        collect_pass.property_set = swap_pass.property_set
+        dag = collect_pass.run(dag)
+
+        consolidate_pass = ConsolidateBlocks(force_consolidate=True)
+        consolidate_pass.property_set = collect_pass.property_set
+        dag = consolidate_pass.run(dag)
+
+        # XXX this is currently broken because of the way consolidate pass works
+        # better would be to check for each unitary, its decomposition cost
+        cost_pass = CountOpsLongestPath()
+        cost_pass.property_set = consolidate_pass.property_set
+        cost_pass.run(dag)  # doesn't return anything, just updates property_set
+
+        cost_dict = cost_pass.property_set["count_ops_longest_path"]
+        cost = sum(
+            3 * val if key == "swap" else 2 * val for key, val in cost_dict.items()
         )
-
-        # Propagate the changes through the remaining gates in the DAG
-        for successor_node in dag.successors(node):
-            if successor_node.type == "op":
-                new_qargs = [layout_dict[q] for q in successor_node.qargs]
-                successor_node.qargs = new_qargs
-            
-        
+        return dag, cost

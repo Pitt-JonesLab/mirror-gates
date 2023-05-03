@@ -9,13 +9,17 @@ init:
 	$(PIP) install -e .[dev]
 
 test:
-	$(PIP) install -e .[test]
+	$(PIP) install -e .[test] --quiet
 	$(PYTEST) src/tests
 
-precommit:
-	$(PIP) install -e .[test]
-	$(PYTEST) src/tests
-	$(PIP) install -e .[format]
+format:
+	$(PIP) install -e .[format] --quiet
 	$(PRE_COMMIT) run --all-files
 
-.PHONY: init test precommit
+precommit:
+	$(PIP) install -e .[test] --quiet
+	$(PYTEST) src/tests
+	$(PIP) install -e .[format] --quiet
+	$(PRE_COMMIT) run --all-files
+
+.PHONY: init test precommit format

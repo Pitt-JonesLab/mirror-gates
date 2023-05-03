@@ -20,6 +20,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: "**/pyproject.toml"
       - name: Install pre-commit packages
-        run: pip install .[format]
+        run: pip install .[format] --quiet
       - name: Run pre-commit
         run: pre-commit run --all-files
