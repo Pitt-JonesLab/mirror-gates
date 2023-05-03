@@ -1,8 +1,12 @@
-# Add custom gates for the backend’s basis to the session EquivalenceLibrary instance.
-from qiskit.circuit.equivalence_library import SessionEquivalenceLibrary as sel
-from qiskit.circuit.library.standard_gates import CXGate, XXPlusYYGate, SwapGate
-from qiskit import QuantumCircuit
+"""Add custom gates to the session EquivalenceLibrary instance.
+
+NOTE: sel is global, so just import this file before calling transpile.
+"""
+
 import numpy as np
+from qiskit import QuantumCircuit
+from qiskit.circuit.equivalence_library import SessionEquivalenceLibrary as sel
+from qiskit.circuit.library.standard_gates import CXGate, SwapGate, XXPlusYYGate
 
 cx_decomp = QuantumCircuit(2)
 cx_decomp.u(np.pi / 4, 0, np.pi / 2, 0)
