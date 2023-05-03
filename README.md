@@ -1,4 +1,4 @@
-# python-template
+# virtual-swap transpilation
 
 ![Tests](https://github.com/Pitt-JonesLab/virtual-swap/actions/workflows/tests.yml/badge.svg?branch=main)
 ![Format Check](https://github.com/Pitt-JonesLab/virtual-swap/actions/workflows/format-check.yml/badge.svg?branch=main)
