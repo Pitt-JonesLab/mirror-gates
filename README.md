@@ -22,19 +22,3 @@ Considering circuits written in a CX basis, then introducing vSWAPS is a convien
 
 Install this to draw the topologies
 `sudo apt install graphviz`
-
-#### References:
-
-https://arxiv.org/pdf/quant-ph/0209035.pdf
-
-https://iopscience.iop.org/article/10.1088/0953-4075/44/11/115502/pdf
-
-https://www.proquest.com/docview/2474836120?pq-origsite=gscholar&fromopenview=true
-
-https://journals.aps.org/pra/pdf/10.1103/PhysRevA.67.032301
-
-https://arxiv.org/pdf/2211.03094.pdf
-
-https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9116963
-
-https://arxiv.org/pdf/1909.07534.pdf

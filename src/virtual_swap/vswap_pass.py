@@ -60,8 +60,15 @@ from qiskit.transpiler.passes import (
     ConsolidateBlocks,
     CountOpsLongestPath,
 )
-from qiskit.transpiler.passes.routing import StochasticSwap
+from qiskit.transpiler.passes.routing import BasicSwap
 from weylchamber import c1c2c3
+
+logger = logging.getLogger("VSWAP")
+
+# can be overriden in __init__, placed here for convenience
+default_start_temp = 5
+default_rate_of_decay = 0.01
+default_threshold_temp = 1
 
 
 class VirtualSwap(TransformationPass):
@@ -71,30 +78,45 @@ class VirtualSwap(TransformationPass):
     circuit is written in terms of sqiSWAP gates.
     """
 
-    start_temp = 10
-    rate_of_decay = 0.001
-    threshold_temp = 1
-
-    def __init__(self, coupling_map, neighbor_func="rand", seed=None, visualize=False):
+    def __init__(
+        self,
+        coupling_map,
+        neighbor_func="rand",
+        seed=None,
+        return_best=True,
+        sa_params=(
+            default_start_temp,
+            default_rate_of_decay,
+            default_threshold_temp,
+        ),
+        visualize=False,
+    ):
         """Virtual-swap routing initializer.
 
         Args:
             coupling_map (CouplingMap): Directed graph represented a coupling map.
             neighbor_func (str): ['rand', 'forward', 'backward'].
             seed (int): Random seed for the stochastic part of the algorithm.
+            return_best (bool): If True, return the best DAG instead of the last DAG.
+            sa_params (tuple): (start_temp, rate_of_decay, threshold_temp)
         """
         super().__init__()
         self.coupling_map = coupling_map
         self.neighbor_func = neighbor_func
+        self.node_index = 0
+        if self.neighbor_func == "backward":
+            self.node_index = -1
         self.seed = seed
+        self.return_best = return_best
+        self.start_temp, self.rate_of_decay, self.threshold_temp = sa_params
         self.visualize = visualize
 
     def run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the VirtualSwapAnnealing pass on `dag`."""
-        logging.info(f"Initial:\n{dag_to_circuit(dag).draw(fold=-1)}")
+        logger.debug(f"Initial:\n{dag_to_circuit(dag).draw(fold=-1)}")
 
         accepted_dag, accepted_cost = self._cost_cleanup(dag)
-        logging.info(f"Initial:\n{dag_to_circuit(accepted_dag).draw(fold=-1)}")
+        logger.debug(f"Initial:\n{dag_to_circuit(accepted_dag).draw(fold=-1)}")
 
         best_dag = None
         best_cost = None
@@ -104,20 +126,20 @@ class VirtualSwap(TransformationPass):
 
         while current_temp > self.threshold_temp:
             working_dag, working_cost = self._SA_iter(accepted_dag)
-            logging.info(f"Working:\n{dag_to_circuit(working_dag).draw(fold=-1)}")
-            logging.info(f"Working: {working_cost}")
+            logger.debug(f"Working:\n{dag_to_circuit(working_dag).draw(fold=-1)}")
+            logger.info(f"Working: {working_cost}")
 
             if best_cost is None or working_cost < best_cost:
                 best_dag = working_dag
                 best_cost = working_cost
-                logging.info(f"Best: {best_cost}")
+                logger.info(f"Best: {best_cost}")
 
             if self._SA_accept(working_cost, accepted_cost, current_temp):
                 accepted_dag = working_dag
                 accepted_cost = working_cost
-                logging.info(f"Accepted: {accepted_cost}")
+                logger.info(f"Accepted: {accepted_cost}")
             else:
-                logging.info(f"Rejected: {working_cost}")
+                logger.info(f"Rejected: {working_cost}")
 
             scores.append(accepted_cost)
             iterations += 1
@@ -133,7 +155,9 @@ class VirtualSwap(TransformationPass):
             plt.show()
         self.property_set["scores"] = scores
 
-        return best_dag
+        if self.return_best:
+            return best_dag
+        return accepted_dag
 
     def _SA_iter(self, dag: DAGCircuit):
         """Perform one iteration of the simulated annealing algorithm.
@@ -147,7 +171,7 @@ class VirtualSwap(TransformationPass):
         working_dag = deepcopy(dag)
 
         # pick gate to replace
-        sub_node = self._get_random_node(working_dag)
+        sub_node = self._get_next_node(working_dag)
 
         # make change in a working copy of the DAG
         working_dag = self._transform_CNS(sub_node, working_dag)
@@ -162,10 +186,10 @@ class VirtualSwap(TransformationPass):
             return True
         else:
             probability = np.exp((accepted_cost - working_cost) / current_temp)
-            logging.info(f"Probability: {probability}")
+            logger.info(f"Probability: {probability}")
             return random.random() < probability
 
-    def _get_random_node(self, dag: DAGCircuit) -> DAGOpNode:
+    def _get_next_node(self, dag: DAGCircuit) -> DAGOpNode:
         """Return a node to take SA sub on.
 
         Args:
@@ -181,15 +205,15 @@ class VirtualSwap(TransformationPass):
         # and consolidation gives (x, 0, 0)
         ###########################
         valid_sub_rules = {(0.5, 0, 0), (0.5, 0.5, 0)}
-        valid_consolidations = valid_sub_rules | {(0.5, 0.5, 0.5)}
-        l1 = [c1c2c3(np.array(sel.op)) for sel in dag.op_nodes()]
-        count1 = sum(el in valid_sub_rules for el in l1)
-        count2 = sum(el in valid_consolidations for el in l1)
-        count3 = len(dag.op_nodes())
-        logging.info(f"CX+iSWAP count: {count1}")
-        logging.info(f"CX+iSWAP+SWAP count: {count2}")
-        logging.info(f"Total count: {count3}")
-        ############################
+        # valid_consolidations = valid_sub_rules | {(0.5, 0.5, 0.5)}
+        # l1 = [c1c2c3(np.array(sel.op)) for sel in dag.op_nodes()]
+        # count1 = sum(el in valid_sub_rules for el in l1)
+        # count2 = sum(el in valid_consolidations for el in l1)
+        # count3 = len(dag.op_nodes())
+        # logger.info(f"CX+iSWAP count: {count1}")
+        # logger.info(f"CX+iSWAP+SWAP count: {count2}")
+        # logger.info(f"Total count: {count3}")
+        # ############################
 
         selected_node = None
         while (
@@ -198,10 +222,19 @@ class VirtualSwap(TransformationPass):
         ):
             if self.neighbor_func == "rand":
                 selected_node = random.choice(dag.op_nodes())
+            # use node index to select next node in valid_sub_rules
+            # if index out of bounds, reset
             elif self.neighbor_func == "forward":
-                raise NotImplementedError
+                selected_node = dag.op_nodes()[self.node_index]
+                self.node_index += 1
+                if self.node_index >= len(dag.op_nodes()):
+                    self.node_index = 0
+            # reset goes to end of list
             elif self.neighbor_func == "backward":
-                raise NotImplementedError
+                selected_node = dag.op_nodes()[self.node_index]
+                self.node_index -= 1
+                if self.node_index < 0:
+                    self.node_index = len(dag.op_nodes()) - 1
 
         assert len(selected_node.qargs) == 2
         assert c1c2c3(np.array(selected_node.op)) in [(0.5, 0, 0), (0.5, 0.5, 0)]
@@ -264,14 +297,18 @@ class VirtualSwap(TransformationPass):
         # NOTE potenially very bad to have nested transpiler passes
         # https://github.com/Qiskit/qiskit-terra/blob/main/qiskit/transpiler/passes/layout/sabre_layout.py#L345
         # use the property_set to pass information between passes
-
         # avoids overhead of converting to/from DAGCircuit
-        swap_pass = StochasticSwap(self.coupling_map, seed=self.seed)
+
+        # swap_pass = StochasticSwap(self.coupling_map, seed=self.seed)
+        # swap_pass.property_set = self.property_set
+        # dag = swap_pass.run(dag)
+
+        swap_pass = BasicSwap(self.coupling_map)
         swap_pass.property_set = self.property_set
         dag = swap_pass.run(dag)
 
         routed_qc = dag_to_circuit(dag)
-        logging.info(f"Routed:\n{routed_qc.draw(fold=-1)}")
+        logger.debug(f"Routed:\n{routed_qc.draw(fold=-1)}")
 
         collect_pass = Collect2qBlocks()
         collect_pass.property_set = swap_pass.property_set
