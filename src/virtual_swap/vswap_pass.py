@@ -66,9 +66,10 @@ from weylchamber import c1c2c3
 logger = logging.getLogger("VSWAP")
 
 # can be overriden in __init__, placed here for convenience
-default_start_temp = 5
-default_rate_of_decay = 0.01
-default_threshold_temp = 1
+default_start_temp = 1
+default_rate_of_decay = 0.001
+# BAD BAD BAD, should be below 1, makes sure gets to do greedy part of algorithm
+default_threshold_temp = 0.01
 
 
 class VirtualSwap(TransformationPass):
@@ -303,6 +304,11 @@ class VirtualSwap(TransformationPass):
         # swap_pass.property_set = self.property_set
         # dag = swap_pass.run(dag)
 
+        # XXX could be the main bottleneck,
+        # do we really need this, to evaluate if the replacement is good,
+        # we should be able to decide purely based on topology,
+        # does it make the outputs closer to their next qubit
+        # TODO
         swap_pass = BasicSwap(self.coupling_map)
         swap_pass.property_set = self.property_set
         dag = swap_pass.run(dag)
