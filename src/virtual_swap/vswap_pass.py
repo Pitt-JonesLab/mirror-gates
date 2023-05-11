@@ -60,7 +60,7 @@ from qiskit.transpiler.passes import (
     ConsolidateBlocks,
     CountOpsLongestPath,
 )
-from qiskit.transpiler.passes.routing import BasicSwap
+from qiskit.transpiler.passes.routing import BasicSwap, StochasticSwap
 from weylchamber import c1c2c3
 
 logger = logging.getLogger("VSWAP")
@@ -317,18 +317,18 @@ class VirtualSwap(TransformationPass):
         # use the property_set to pass information between passes
         # avoids overhead of converting to/from DAGCircuit
 
-        # swap_pass = StochasticSwap(self.coupling_map, seed=self.seed)
-        # swap_pass.property_set = self.property_set
-        # dag = swap_pass.run(dag)
+        swap_pass = StochasticSwap(self.coupling_map, seed=self.seed)
+        swap_pass.property_set = self.property_set
+        dag = swap_pass.run(dag)
 
         # XXX could be the main bottleneck,
         # do we really need this, to evaluate if the replacement is good,
         # we should be able to decide purely based on topology,
         # does it make the outputs closer to their next qubit
         # TODO
-        swap_pass = BasicSwap(self.coupling_map)
-        swap_pass.property_set = self.property_set
-        dag = swap_pass.run(dag)
+        # swap_pass = BasicSwap(self.coupling_map)
+        # swap_pass.property_set = self.property_set
+        # dag = swap_pass.run(dag)
 
         routed_qc = dag_to_circuit(dag)
         logger.debug(f"Routed:\n{routed_qc.draw(fold=-1)}")
