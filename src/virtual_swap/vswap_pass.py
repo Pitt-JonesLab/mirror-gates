@@ -120,7 +120,7 @@ class VirtualSwap(TransformationPass):
         # initialize accepted state
         accepted_dag, accepted_cost = self._cost_cleanup(dag)
         accepted_copy = deepcopy(accepted_dag)
-        
+
         # logger.debug(f"Initial:\n{dag_to_circuit(accepted_dag).draw(fold=-1)}")
 
         best_dag = None
@@ -163,7 +163,7 @@ class VirtualSwap(TransformationPass):
             plt.title("Simulated Annealing")
             # plot probabilities with separate y-axis
             ax2 = plt.twinx()
-            ax2.scatter(range(iterations), self.probabilities, color="red", marker='.')
+            ax2.scatter(range(iterations), self.probabilities, color="red", marker=".")
             ax2.set_ylabel("Probability")
             plt.show()
         self.property_set["scores"] = scores
