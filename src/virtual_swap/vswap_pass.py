@@ -66,10 +66,10 @@ from weylchamber import c1c2c3
 logger = logging.getLogger("VSWAP")
 
 # can be overriden in __init__, placed here for convenience
-default_start_temp = 1
-default_rate_of_decay = 0.001
+default_start_temp = 5
+default_rate_of_decay = 0.01
 # BAD BAD BAD, should be below 1, makes sure gets to do greedy part of algorithm
-default_threshold_temp = 0.01
+default_threshold_temp = 0.1
 
 
 class VirtualSwap(TransformationPass):
@@ -111,22 +111,27 @@ class VirtualSwap(TransformationPass):
         self.return_best = return_best
         self.start_temp, self.rate_of_decay, self.threshold_temp = sa_params
         self.visualize = visualize
+        self.probabilities = None
 
     def run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the VirtualSwapAnnealing pass on `dag`."""
-        logger.debug(f"Initial:\n{dag_to_circuit(dag).draw(fold=-1)}")
+        # logger.debug(f"Initial:\n{dag_to_circuit(dag).draw(fold=-1)}")
 
+        # initialize accepted state
         accepted_dag, accepted_cost = self._cost_cleanup(dag)
-        logger.debug(f"Initial:\n{dag_to_circuit(accepted_dag).draw(fold=-1)}")
+        accepted_copy = deepcopy(accepted_dag)
+        
+        # logger.debug(f"Initial:\n{dag_to_circuit(accepted_dag).draw(fold=-1)}")
 
         best_dag = None
         best_cost = None
         current_temp = self.start_temp
         iterations = 0
         scores = []
+        self.probabilities = []
 
         while current_temp > self.threshold_temp:
-            working_dag, working_cost = self._SA_iter(accepted_dag)
+            working_dag, working_cost = self._SA_iter(accepted_copy)
             logger.debug(f"Working:\n{dag_to_circuit(working_dag).draw(fold=-1)}")
             logger.info(f"Working: {working_cost}")
 
@@ -137,6 +142,8 @@ class VirtualSwap(TransformationPass):
 
             if self._SA_accept(working_cost, accepted_cost, current_temp):
                 accepted_dag = working_dag
+                # NOTE, copy here so ends up calling deepcopy less often
+                accepted_copy = deepcopy(accepted_dag)
                 accepted_cost = working_cost
                 logger.info(f"Accepted: {accepted_cost}")
             else:
@@ -153,6 +160,11 @@ class VirtualSwap(TransformationPass):
             plt.plot(range(iterations), scores)
             plt.xlabel("Iteration")
             plt.ylabel("Cost")
+            plt.title("Simulated Annealing")
+            # plot probabilities with separate y-axis
+            ax2 = plt.twinx()
+            ax2.scatter(range(iterations), self.probabilities, color="red", marker='.')
+            ax2.set_ylabel("Probability")
             plt.show()
         self.property_set["scores"] = scores
 
@@ -160,16 +172,19 @@ class VirtualSwap(TransformationPass):
             return best_dag
         return accepted_dag
 
-    def _SA_iter(self, dag: DAGCircuit):
+    def _SA_iter(self, working_dag: DAGCircuit):
         """Perform one iteration of the simulated annealing algorithm.
 
         Args:
-            dag (DAGCircuit): DAG to perform SA on.
+            working_dag (DAGCircuit): DAG to perform SA on. This DAG will be modified.
+            Therefore, pass in a deepcopy. Create a copy only when accepting changes,
+            this means can call deepcopy less often.
 
         Returns:
             Tuple[DAGCircuit, float]: (working_dag, working_cost)
         """
-        working_dag = deepcopy(dag)
+        # changed so deepcopy is handled outside of this function
+        # working_dag = deepcopy(dag)
 
         # pick gate to replace
         sub_node = self._get_next_node(working_dag)
@@ -184,10 +199,12 @@ class VirtualSwap(TransformationPass):
     def _SA_accept(self, working_cost, accepted_cost, current_temp) -> bool:
         """Return True if we should accept the working state."""
         if working_cost < accepted_cost:
+            self.probabilities.append(1)
             return True
         else:
             probability = np.exp((accepted_cost - working_cost) / current_temp)
             logger.info(f"Probability: {probability}")
+            self.probabilities.append(probability)
             return random.random() < probability
 
     def _get_next_node(self, dag: DAGCircuit) -> DAGOpNode:
