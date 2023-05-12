@@ -60,7 +60,7 @@ from qiskit.transpiler.passes import (
     ConsolidateBlocks,
     CountOpsLongestPath,
 )
-from qiskit.transpiler.passes.routing import BasicSwap, StochasticSwap
+from qiskit.transpiler.passes.routing import StochasticSwap
 from weylchamber import c1c2c3
 
 logger = logging.getLogger("VSWAP")
@@ -132,7 +132,7 @@ class VirtualSwap(TransformationPass):
 
         while current_temp > self.threshold_temp:
             working_dag, working_cost = self._SA_iter(accepted_copy)
-            logger.debug(f"Working:\n{dag_to_circuit(working_dag).draw(fold=-1)}")
+            # logger.debug(f"Working:\n{dag_to_circuit(working_dag).draw(fold=-1)}")
             logger.info(f"Working: {working_cost}")
 
             if best_cost is None or working_cost < best_cost:
@@ -330,8 +330,8 @@ class VirtualSwap(TransformationPass):
         # swap_pass.property_set = self.property_set
         # dag = swap_pass.run(dag)
 
-        routed_qc = dag_to_circuit(dag)
-        logger.debug(f"Routed:\n{routed_qc.draw(fold=-1)}")
+        dag_to_circuit(dag)
+        # logger.debug(f"Routed:\n{routed_qc.draw(fold=-1)}")
 
         collect_pass = Collect2qBlocks()
         collect_pass.property_set = swap_pass.property_set
