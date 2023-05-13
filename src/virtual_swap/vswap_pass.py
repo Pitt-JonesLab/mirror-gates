@@ -330,7 +330,7 @@ class VirtualSwap(TransformationPass):
         # swap_pass.property_set = self.property_set
         # dag = swap_pass.run(dag)
 
-        dag_to_circuit(dag)
+        # dag_to_circuit(dag)
         # logger.debug(f"Routed:\n{routed_qc.draw(fold=-1)}")
 
         collect_pass = Collect2qBlocks()

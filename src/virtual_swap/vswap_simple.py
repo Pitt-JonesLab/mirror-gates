@@ -18,18 +18,26 @@ lookahead.
 import logging
 import random
 from copy import deepcopy
-from typing import Tuple
+from qiskit.circuit.library.standard_gates import CXGate, iSwapGate, SwapGate
 
 import numpy as np
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler.basepasses import TransformationPass
 from weylchamber import c1c2c3
+from qiskit import QuantumCircuit
+from qiskit.transpiler.passes.routing import SabreSwap
+from qiskit.converters import dag_to_circuit, circuit_to_dag
+from qiskit.transpiler.passes import (
+    Collect2qBlocks,
+    ConsolidateBlocks,
+    CountOpsLongestPath,
+)
 
 logger = logging.getLogger("VSWAP")
 
 # can be overriden in __init__, placed here for convenience
-default_start_temp = 5
-default_rate_of_decay = 0.01
+default_start_temp = 10
+default_rate_of_decay = 0.001
 # BAD BAD BAD, should be below 1, makes sure gets to do greedy part of algorithm
 default_threshold_temp = 0.1
 
@@ -74,6 +82,7 @@ class VirtualSwap(TransformationPass):
     def run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the VirtualSwapAnnealing pass on `dag`."""
         # logger.debug(f"Initial:\n{dag_to_circuit(dag).draw(fold=-1)}")
+        self.qc = dag_to_circuit(dag)
 
         # initialize accepted state
         accepted_dag, accepted_cost = self._cost_cleanup(dag)
@@ -127,8 +136,117 @@ class VirtualSwap(TransformationPass):
         self.property_set["scores"] = scores
 
         if self.return_best:
-            return best_dag
-        return accepted_dag
+            accepted_dag = best_dag
+        
+        # FIXME, can improve only traversing forward once
+        for node in accepted_dag.topological_op_nodes():
+            if node.op.name == "cx_m":
+                node.op.name = "cx"
+                accepted_dag = self._transform_CNS(node, accepted_dag)
+
+        # FIXME
+        return self._final_clean(accepted_dag)
+    
+    def _final_clean(self, dag: DAGCircuit) -> DAGCircuit:
+        """Cost function with intermediate steps.
+
+        Args:
+            dag (DAGCircuit): DAG to compute cost of.
+
+        Returns:
+            Tuple[DAGCircuit, float]: (dag, cost)
+        """
+        # NOTE potenially very bad to have nested transpiler passes
+        # https://github.com/Qiskit/qiskit-terra/blob/main/qiskit/transpiler/passes/layout/sabre_layout.py#L345
+        # use the property_set to pass information between passes
+        # avoids overhead of converting to/from DAGCircuit
+
+        swap_pass = SabreSwap(self.coupling_map, seed=self.seed)
+        swap_pass.property_set = self.property_set
+        dag = swap_pass.run(dag)
+
+        collect_pass = Collect2qBlocks()
+        collect_pass.property_set = swap_pass.property_set
+        dag = collect_pass.run(dag)
+
+        consolidate_pass = ConsolidateBlocks(force_consolidate=True)
+        consolidate_pass.property_set = collect_pass.property_set
+        dag = consolidate_pass.run(dag)
+
+        for node in dag.topological_op_nodes():
+            coord = c1c2c3(np.array(node.op))
+            if coord == (0.5, 0, 0):
+                # transform CX into iSWAP
+                # XXX not preserving unitary correctness
+                dag.substitute_node(node, CXGate(), inplace=True)
+            elif coord == (0.5, 0.5, 0):
+                # transform iSWAP into CX
+                # XXX not preserving unitary correctness
+                dag.substitute_node(node, iSwapGate(), inplace=True)
+            elif coord == (0.5, 0.5, 0.5):
+                # make out of 3 CNOTS
+                # XXX not preserving unitary correctness
+                dag.substitute_node(node, SwapGate(), inplace=True)
+            else:
+                # check monodromy to see how many sqiswaps we need
+                dag.substitute_node(node, iSwapGate(), inplace=True)
+
+        cost_pass = CountOpsLongestPath()
+        cost_pass.property_set = consolidate_pass.property_set
+        cost_pass.run(dag)  # doesn't return anything, just updates property_set
+
+        cost_dict = cost_pass.property_set["count_ops_longest_path"]
+        cost = sum(
+            3 * val if key == "swap" else 2 * val for key, val in cost_dict.items()
+        )
+        print(f"Cost: {cost}")
+        return dag #, cost
+
+
+    def _transform_CNS(self, node: DAGOpNode, dag: DAGCircuit) -> DAGCircuit:
+        """Transform CX into iSWAP+SWAP or iSWAP into CX+SWAP.
+
+        Applies changes to 'dag' in-place. Uses virtual-swap; no real SWAPs added.
+        Instead of SWAP, update layout and gate placements.
+
+        Args:
+            node_index (int): Index of node to transform.
+            dag (DAGCircuit): DAG to transform.
+
+        Returns:
+            DAGCircuit: Transformed DAG.
+        """
+        # 1. transform node in temp_dag
+        # XXX will need to define the sub rules more exactly
+        coord = c1c2c3(np.array(node.op))
+        if coord == (0.5, 0, 0):
+            # transform CX into iSWAP
+            # XXX not preserving unitary correctness
+            dag.substitute_node(node, iSwapGate(), inplace=True)
+        elif coord == (0.5, 0.5, 0):
+            # transform iSWAP into CX
+            # XXX not preserving unitary correctness
+            dag.substitute_node(node, CXGate(), inplace=True)
+        else:
+            raise ValueError(f"Invalid node: {node}")
+
+        # 2. propagate changes down the DAG
+        # NOTE there is definitely a better way to do this
+        # find clever use of dag.substitute_node_with_dag
+
+        # placement of the virtual-swap gate
+        # copy maybe not necessary, keep for safety :)
+        working_layout = self.property_set["layout"].copy()
+        working_layout.swap(node.qargs[0], node.qargs[1])
+
+        # update gate-wire placement
+        for successor_node in dag.descendants(node):
+            if isinstance(successor_node, DAGOpNode):
+                successor_node.qargs = [
+                    working_layout[qarg.index] for qarg in successor_node.qargs
+                ]
+
+        return dag
 
     def _SA_iter(self, working_dag: DAGCircuit):
         """Perform one iteration of the simulated annealing algorithm.
@@ -186,15 +304,28 @@ class VirtualSwap(TransformationPass):
 
         return selected_node
 
-    def _cost_cleanup(self, dag: DAGCircuit) -> Tuple[DAGCircuit, float]:
+    def _cost_cleanup(self, dag: DAGCircuit) -> float:
         """Cost function with intermediate steps.
 
         Args:
             dag (DAGCircuit): DAG to compute cost of.
-
-        Returns:
-            Tuple[DAGCircuit, float]: (dag, cost)
         """
+        temp_layout = deepcopy(self.property_set["layout"])
 
-        # we need this in order to get bit indexes
-        # FIXME, to save time, can only recompute this when we change the DAg
+        cost = 0
+        for node in dag.topological_op_nodes():
+            # edge case, not sure best way to handle yet
+            if node.op.name not in ["cx", "cx_m"]:
+                continue
+
+            distance = self.coupling_map.distance(
+                temp_layout.get_virtual_bits()[node.qargs[0]],
+                temp_layout.get_virtual_bits()[node.qargs[1]]
+                )
+            cost += distance
+            
+            # update layout if marked node
+            if node.op.name == "cx_m":
+                temp_layout.swap(node.qargs[0], node.qargs[1])
+        return dag, cost
+
