@@ -18,20 +18,19 @@ lookahead.
 import logging
 import random
 from copy import deepcopy
-from qiskit.circuit.library.standard_gates import CXGate, iSwapGate, SwapGate
 
 import numpy as np
+from qiskit.circuit.library.standard_gates import CXGate, SwapGate, iSwapGate
+from qiskit.converters import dag_to_circuit
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler.basepasses import TransformationPass
-from weylchamber import c1c2c3
-from qiskit import QuantumCircuit
-from qiskit.transpiler.passes.routing import SabreSwap
-from qiskit.converters import dag_to_circuit, circuit_to_dag
 from qiskit.transpiler.passes import (
     Collect2qBlocks,
     ConsolidateBlocks,
     CountOpsLongestPath,
 )
+from qiskit.transpiler.passes.routing import SabreSwap
+from weylchamber import c1c2c3
 
 logger = logging.getLogger("VSWAP")
 
@@ -137,7 +136,7 @@ class VirtualSwap(TransformationPass):
 
         if self.return_best:
             accepted_dag = best_dag
-        
+
         # FIXME, can improve only traversing forward once
         for node in accepted_dag.topological_op_nodes():
             if node.op.name == "cx_m":
@@ -146,7 +145,7 @@ class VirtualSwap(TransformationPass):
 
         # FIXME
         return self._final_clean(accepted_dag)
-    
+
     def _final_clean(self, dag: DAGCircuit) -> DAGCircuit:
         """Cost function with intermediate steps.
 
@@ -196,12 +195,9 @@ class VirtualSwap(TransformationPass):
         cost_pass.run(dag)  # doesn't return anything, just updates property_set
 
         cost_dict = cost_pass.property_set["count_ops_longest_path"]
-        cost = sum(
-            3 * val if key == "swap" else 2 * val for key, val in cost_dict.items()
-        )
-        print(f"Cost: {cost}")
-        return dag #, cost
-
+        sum(3 * val if key == "swap" else 2 * val for key, val in cost_dict.items())
+        # print(f"Cost: {cost}")
+        return dag  # , cost
 
     def _transform_CNS(self, node: DAGOpNode, dag: DAGCircuit) -> DAGCircuit:
         """Transform CX into iSWAP+SWAP or iSWAP into CX+SWAP.
@@ -320,12 +316,11 @@ class VirtualSwap(TransformationPass):
 
             distance = self.coupling_map.distance(
                 temp_layout.get_virtual_bits()[node.qargs[0]],
-                temp_layout.get_virtual_bits()[node.qargs[1]]
-                )
+                temp_layout.get_virtual_bits()[node.qargs[1]],
+            )
             cost += distance
-            
+
             # update layout if marked node
             if node.op.name == "cx_m":
                 temp_layout.swap(node.qargs[0], node.qargs[1])
         return dag, cost
-
