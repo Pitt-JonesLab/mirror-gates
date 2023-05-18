@@ -38,9 +38,8 @@ from weylchamber import c1c2c3
 logger = logging.getLogger("VSWAP")
 
 # can be overriden in __init__, placed here for convenience
-default_start_temp = 10
+default_start_temp = 5
 default_rate_of_decay = 0.001
-# BAD BAD BAD, should be below 1, makes sure gets to do greedy part of algorithm
 default_threshold_temp = 0.1
 
 
@@ -80,11 +79,13 @@ class VirtualSwap(TransformationPass):
         self.start_temp, self.rate_of_decay, self.threshold_temp = sa_params
         self.visualize = visualize
         self.probabilities = None
+        # seed the random module
+        random.seed(self.seed)
 
     def run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the VirtualSwapAnnealing pass on `dag`."""
-        # logger.debug(f"Initial:\n{dag_to_circuit(dag).draw(fold=-1)}")
         self.qc = dag_to_circuit(dag)
+        # print(f"Initial:\n{self.qc.draw()}")
 
         # initialize accepted state
         accepted_layout = self.property_set["layout"]
@@ -112,6 +113,10 @@ class VirtualSwap(TransformationPass):
 
             if self._SA_accept(working_cost, accepted_cost, current_temp):
                 accepted_dag = working_dag
+
+                # debugging print
+                # logger.debug(f"Accepted:\n{dag_to_circuit(accepted_dag).draw()}")
+
                 # NOTE, copy here so ends up calling deepcopy less often
                 accepted_copy = deepcopy(accepted_dag)
 
@@ -142,15 +147,20 @@ class VirtualSwap(TransformationPass):
         if self.return_best:
             accepted_dag = best_dag
 
-        # FIXME, can improve only traversing forward once
-        # ?
-        for node in accepted_dag.topological_op_nodes():
-            if node.op.name == "cx_m":
-                node.op.name = "cx"
-                accepted_dag = self._transform_CNS(node, accepted_dag)
-            if node.op.name == "iswap_m":
-                node.op.name = "iswap"
-                accepted_dag = self._transform_CNS(node, accepted_dag)
+        while True:
+            # print("Making CNS changes")
+            # check if any more remaining marked nodes
+            marked_nodes = [
+                node
+                for node in accepted_dag.topological_op_nodes()
+                if node.op.name in ["cx_m", "iswap_m"]
+            ]
+            if len(marked_nodes) == 0:
+                break
+            # if so, choose one and transform
+            node = marked_nodes[0]
+            node.op.name = node.op.name[:-2]  # remove _m
+            accepted_dag = self._transform_CNS(node, accepted_dag)
 
         # finish
         self.property_set["layout"] = accepted_layout
@@ -173,6 +183,10 @@ class VirtualSwap(TransformationPass):
         swap_pass = SabreSwap(self.coupling_map, seed=self.seed)
         swap_pass.property_set = self.property_set
         dag = swap_pass.run(dag)
+
+        # from qiskit.converters import dag_to_circuit
+        # temp_qc = dag_to_circuit(dag)
+        # print(temp_qc.draw())
 
         collect_pass = Collect2qBlocks()
         collect_pass.property_set = swap_pass.property_set
@@ -255,9 +269,20 @@ class VirtualSwap(TransformationPass):
         # update gate-wire placement
         for successor_node in dag.descendants(node):
             if isinstance(successor_node, DAGOpNode):
-                successor_node.qargs = [
-                    working_layout[qarg.index] for qarg in successor_node.qargs
-                ]
+                # XXX broken references between V and P qubits (?)
+                # successor_node.qargs = [
+                #     working_layout[qarg.index] for qarg in successor_node.qargs
+                # ]
+                qargs = successor_node.qargs
+                new_qargs = []
+                for qarg in qargs:
+                    if qarg == node.qargs[0]:
+                        new_qargs.append(node.qargs[1])
+                    elif qarg == node.qargs[1]:
+                        new_qargs.append(node.qargs[0])
+                    else:
+                        new_qargs.append(qarg)
+                successor_node.qargs = new_qargs
 
         return dag
 
@@ -281,6 +306,7 @@ class VirtualSwap(TransformationPass):
 
         # compute cost of working_dag
         working_dag, working_cost = self._cost_cleanup(working_dag, working_layout)
+
         return working_dag, working_cost
 
     def _SA_accept(self, working_cost, accepted_cost, current_temp) -> bool:
@@ -323,7 +349,7 @@ class VirtualSwap(TransformationPass):
             selected_node.op.name = "cx_m"
         elif selected_node.op.name == "cx_m":
             selected_node.op.name = "cx"
-        if selected_node.op.name == "iswap":
+        elif selected_node.op.name == "iswap":
             selected_node.op.name = "iswap_m"
         elif selected_node.op.name == "iswap_m":
             selected_node.op.name = "iswap"
@@ -350,7 +376,9 @@ class VirtualSwap(TransformationPass):
                 temp_layout.get_virtual_bits()[node.qargs[0]],
                 temp_layout.get_virtual_bits()[node.qargs[1]],
             )
-            cost += distance
+
+            cost += 1.5 * (distance - 1)  # distance 1 means connected
+            cost += 1  # cost of the gate itself
 
             # update layout if marked node
             if node.op.name in ["cx_m", "iswap_m"]:

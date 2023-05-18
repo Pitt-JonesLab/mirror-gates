@@ -6,7 +6,7 @@ from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap, PassManager
 from qiskit.transpiler.passes import ApplyLayout, TrivialLayout, Unroller
 
-from virtual_swap.vswap_pass import VirtualSwap
+from virtual_swap.deprecated.vswap_pass import VirtualSwap
 
 
 class TestVirtualSwapPass:
