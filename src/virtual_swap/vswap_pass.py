@@ -25,7 +25,7 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 import numpy as np
 from qiskit import QuantumCircuit
-from qiskit.dagcircuit import DAGCircuit, DAGOpNode, DAGOutNode
+from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.passes import Optimize1qGates, Unroller
 
@@ -128,7 +128,7 @@ class VSwapPass(TransformationPass):
         new_dag = deepcopy(self.dag)  # self.dag.copy()
 
         # make CNS transformation
-        self._cns_transform(new_dag, sub_node)
+        new_dag = self._cns_transform(new_dag, sub_node)
 
         # XXX move into new function?
         # cleanup using unroller and 1Q smush
@@ -192,54 +192,40 @@ class VSwapPass(TransformationPass):
             break
         return selected_node
 
-    def _cns_transform(self, dag, h_node) -> None:
-        """Perform the CNS transformation on the given node.
+    def _cns_transform(self, dag: DAGCircuit, h_node):
+        """Alternative implementation, adds nodes into blank copy of dag."""
+        new_dag = dag.copy_empty_like()
 
-        Modifies the DAG in place, thus should be called on a copy.
-        """
+        flip_flag = False
+
         swap_wires = {
             qarg1: qarg2 for qarg1, qarg2 in zip(h_node.qargs, h_node.qargs[::-1])
         }
 
-        # NOTE, include the node itself, we want to reference set of all outgoing edges
-        node_list = list(dag.descendants(h_node))
-        node_list.insert(0, h_node)
-
-        for source in node_list:
-            # first, update edge arguments
-            for target in dag.successors(source):
-                edge = dag._multi_graph.get_edge_data(source._node_id, target._node_id)
-                dag._multi_graph.update_edge(
-                    source._node_id, target._node_id, swap_wires.get(edge, edge)
-                )
-
-            # second, update the node's qargs
-            if source == h_node:
-                # here replace the operation...
-                if source.name == "cx":
-                    dag.substitute_node(source, cx_replace.to_instruction())
-                elif source.name == "iswap":
-                    dag.substitute_node(source, iswap_replace.to_instruction())
+        for node in dag.topological_op_nodes():
+            if node == h_node:
+                if node.name == "cx":
+                    new_dag.apply_operation_back(
+                        cx_replace.to_instruction(), node.qargs
+                    )
+                elif node.name == "iswap":
+                    new_dag.apply_operation_back(
+                        iswap_replace.to_instruction(), node.qargs
+                    )
                 else:
                     raise ValueError("Unsupported operation")
+                flip_flag = True
 
-                # source doesn't get wire swap applied on itself
-                continue
-            elif isinstance(source, DAGOpNode):
-                source.qargs = [swap_wires.get(qarg, qarg) for qarg in source.qargs]
-
-            # third, update output nodes
-            if isinstance(source, DAGOutNode):
-                source.wire = swap_wires.get(source.wire, source.wire)
-
-        # add a swap a swap at end of circuit
-        # NOTE, preserves unitary for equivalence checks
-        # final SWAP gates can be removed by the optimizer
-        # dag.apply_operation_back(SwapGate(), h_node.qargs)
-        # FIXME update dag output map, see optimizeswap pass
-        dag.output_map.update(swap_wires)
-
-        return dag
+            else:
+                if flip_flag:
+                    new_dag.apply_operation_back(
+                        node.op, [swap_wires.get(qarg, qarg) for qarg in node.qargs]
+                    )
+                else:
+                    new_dag.apply_operation_back(node.op, node.qargs)
+        # fix with a swap
+        # new_dag.apply_operation_back(SwapGate(), h_node.qargs)
+        return new_dag
 
     def _evaluate_cost(self, dag: DAGCircuit) -> float:
         """Evaluate the cost of the current dag.
