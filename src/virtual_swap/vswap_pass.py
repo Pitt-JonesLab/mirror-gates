@@ -256,9 +256,12 @@ class VSwapPass(TransformationPass):
         # FIXME
 
         # method 1, use depth :(
-        # return dag.depth()
+        # return dag.depth()]
 
-        v_to_p = self.property_set["layout"].get_virtual_bits()
+        ## NOTE ApplyLayout changes qargs into physical indices
+        # don't do this conversion, because already physical :)
+        # v_to_p = self.property_set["layout"].get_virtual_bits()
+
         # method 2, use topological distance over all gates
         # is an okay heuristic, but is related to total gates
         # instead we want critical path gates
@@ -267,7 +270,8 @@ class VSwapPass(TransformationPass):
         total_distance = 0
         for node in two_qubit_ops:
             # get physical index of node qargs
-            phys_qargs = [v_to_p[qarg] for qarg in node.qargs]
+            phys_qargs = [arg.index for arg in node.qargs]
+
             # get topological distance
             total_distance += self.coupling_map.distance(*phys_qargs) - 1
         total_cost += total_distance
