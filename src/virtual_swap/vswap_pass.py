@@ -29,6 +29,8 @@ from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.passes import Optimize1qGates, Unroller
 
+# for debuging
+
 # from qiskit.transpiler.passes import Layout2qDistance
 # from qiskit.circuit.library import SwapGate
 
@@ -122,10 +124,10 @@ class VSwapPass(TransformationPass):
 
     def _SA_iter(self) -> None:
         """Perform a simulated annealing iteration."""
-        sub_node = self._get_next_node()
-
         # FIXME, for speed-up, can make a copy only after accepting a change
         new_dag = deepcopy(self.dag)  # self.dag.copy()
+
+        sub_node = self._get_next_node(new_dag)
 
         # make CNS transformation
         new_dag = self._cns_transform(new_dag, sub_node)
@@ -169,7 +171,7 @@ class VSwapPass(TransformationPass):
             self.probabilities.append(prob)
             return prob > np.random.random()
 
-    def _get_next_node(self) -> DAGOpNode:
+    def _get_next_node(self, dag: DAGCircuit) -> DAGOpNode:
         """Get the next node to perform the CNS transformation on."""
         selected_node = None
 
@@ -178,7 +180,7 @@ class VSwapPass(TransformationPass):
         while True:
             if selected_node is None:
                 # random choice over gates
-                selected_node = np.random.choice(self.dag.gate_nodes())
+                selected_node = np.random.choice(dag.gate_nodes())
 
             # must be a two-qubit gate
             # FIXME can remove this, just by checking if 'cx' in name
