@@ -53,9 +53,9 @@ iswap_replace.cx(0, 1)
 iswap_replace.h(1)
 
 # can be overriden in __init__, placed here for convenience
-default_start_temp = 5
+default_start_temp = 8
 default_rate_of_decay = 0.01
-default_threshold_temp = 0.5
+default_threshold_temp = 0.1
 
 
 class VSwapPass(TransformationPass):
@@ -118,7 +118,7 @@ class VSwapPass(TransformationPass):
         plt.xlabel("Iteration")
         plt.ylabel("Cost")
         ax2 = plt.twinx()
-        ax2.plot(self.probabilities, color="red", marker=".")
+        ax2.plot(self.probabilities, color="red", marker=".", alpha=0.25)
         ax2.set_ylabel("Probability", color="red")
         plt.show()
 
@@ -244,7 +244,7 @@ class VSwapPass(TransformationPass):
         # FIXME
 
         # method 1, use depth :(
-        # return dag.depth()]
+        return dag.depth()
 
         ## NOTE ApplyLayout changes qargs into physical indices
         # don't do this conversion, because already physical :)
@@ -253,34 +253,27 @@ class VSwapPass(TransformationPass):
         # method 2, use topological distance over all gates
         # is an okay heuristic, but is related to total gates
         # instead we want critical path gates
-        two_qubit_ops = list(dag.two_qubit_ops())
-        total_cost = len(two_qubit_ops)
-        total_distance = 0
-        for node in two_qubit_ops:
-            # get physical index of node qargs
-            phys_qargs = [arg.index for arg in node.qargs]
-
-            # get topological distance
-            total_distance += self.coupling_map.distance(*phys_qargs) - 1
-        total_cost += total_distance
-        return total_cost
-
-        # method 3, use topological distance
-        # # but also need a notion of consolidated block decomp cost
         # two_qubit_ops = list(dag.two_qubit_ops())
-        # total_cost = 0
+        # total_cost = len(two_qubit_ops)
         # total_distance = 0
         # for node in two_qubit_ops:
         #     # get physical index of node qargs
-        #     phys_qargs = [v_to_p[qarg] for qarg in node.qargs]
+        #     phys_qargs = [arg.index for arg in node.qargs]
+
         #     # get topological distance
         #     total_distance += self.coupling_map.distance(*phys_qargs) - 1
         # total_cost += total_distance
         # return total_cost
 
-        # distance_pass = Layout2qDistance(self.coupling_map, "distance_score")
-        # distance_pass.property_set = self.property_set
-        # distance_pass.run(dag)
-        # return self.property_set["distance_score"]
-
-    # use built-in method
+        # def weight_fn(_1, target_node, _2):
+        #     nonlocal cost_dag
+        #     nonlocal cost_temp_layout
+        #     # source_node = cost_dag._multi_graph[source_node]
+        #     target_node = cost_dag._multi_graph[target_node]
+        #     if not isinstance(target_node, DAGOpNode):
+        #         return 0
+        #     if len(target_node.qargs) != 2:
+        #         return 0
+        #     arg1 = cost_temp_layout.get_virtual_bits()[target_node.qargs[0]]
+        #     arg2 = cost_temp_layout.get_virtual_bits()[target_node.qargs[1]]
+        #     return self.coupling_map.distance(arg1, arg2)
