@@ -8,6 +8,8 @@ from qiskit import QuantumCircuit
 from qiskit.circuit.equivalence_library import SessionEquivalenceLibrary as sel
 from qiskit.circuit.library.standard_gates import CXGate, SwapGate, XXPlusYYGate
 
+# FIXME dummy values
+
 cx_decomp = QuantumCircuit(2)
 cx_decomp.u(np.pi / 4, 0, np.pi / 2, 0)
 cx_decomp.u(np.pi / 4, 0, np.pi / 2, 1)
