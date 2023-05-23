@@ -24,33 +24,16 @@ from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
-from qiskit import QuantumCircuit
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.passes import Optimize1qGates, Unroller
+
+from virtual_swap.cns_transform import _cns_transform
 
 # for debuging
 
 # from qiskit.transpiler.passes import Layout2qDistance
 # from qiskit.circuit.library import SwapGate
-
-# Global CNS Transformations. TODO move to _equiv.py
-# cx -> iswap
-cx_replace = QuantumCircuit(2, 0)
-cx_replace.h(1)
-cx_replace.rz(-np.pi / 2, 0)
-cx_replace.rz(-np.pi / 2, 1)
-cx_replace.iswap(0, 1)
-cx_replace.h(0)
-cx_replace.draw("mpl")
-
-# iswap -> cx
-iswap_replace = QuantumCircuit(2, 0)
-iswap_replace.rz(np.pi / 2, 0)
-iswap_replace.rz(np.pi / 2, 1)
-iswap_replace.h(1)
-iswap_replace.cx(0, 1)
-iswap_replace.h(1)
 
 # can be overriden in __init__, placed here for convenience
 default_start_temp = 8
@@ -130,7 +113,7 @@ class VSwapPass(TransformationPass):
         sub_node = self._get_next_node(new_dag)
 
         # make CNS transformation
-        new_dag = self._cns_transform(new_dag, sub_node)
+        new_dag = _cns_transform(new_dag, sub_node)
 
         # XXX move into new function?
         # cleanup using unroller and 1Q smush
@@ -193,41 +176,6 @@ class VSwapPass(TransformationPass):
                 continue
             break
         return selected_node
-
-    def _cns_transform(self, dag: DAGCircuit, h_node):
-        """Alternative implementation, adds nodes into blank copy of dag."""
-        new_dag = dag.copy_empty_like()
-
-        flip_flag = False
-
-        swap_wires = {
-            qarg1: qarg2 for qarg1, qarg2 in zip(h_node.qargs, h_node.qargs[::-1])
-        }
-
-        for node in dag.topological_op_nodes():
-            if node == h_node:
-                if node.name == "cx":
-                    new_dag.apply_operation_back(
-                        cx_replace.to_instruction(), node.qargs
-                    )
-                elif node.name == "iswap":
-                    new_dag.apply_operation_back(
-                        iswap_replace.to_instruction(), node.qargs
-                    )
-                else:
-                    raise ValueError("Unsupported operation")
-                flip_flag = True
-
-            else:
-                if flip_flag:
-                    new_dag.apply_operation_back(
-                        node.op, [swap_wires.get(qarg, qarg) for qarg in node.qargs]
-                    )
-                else:
-                    new_dag.apply_operation_back(node.op, node.qargs)
-        # fix with a swap
-        # new_dag.apply_operation_back(SwapGate(), h_node.qargs)
-        return new_dag
 
     def _evaluate_cost(self, dag: DAGCircuit) -> float:
         """Evaluate the cost of the current dag.
