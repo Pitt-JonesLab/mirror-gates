@@ -9,6 +9,7 @@ from qiskit.transpiler.passes import (
     FullAncillaAllocation,
     SabreLayout,
     Unroller,
+    OptimizeSwapBeforeMeasure,
 )
 from qiskit.transpiler.passmanager import PassManager
 
@@ -47,6 +48,7 @@ class SabreCNS(CustomPassManager):
             [FullAncillaAllocation(coupling), EnlargeWithAncilla(), ApplyLayout()]
         )
         pm.append(routing)
+        pm.append(OptimizeSwapBeforeMeasure())
         pm.append(Unroller(["u", "cx", "iswap", "swap"]))
         super().__init__(pm)
 
@@ -65,6 +67,7 @@ class SabreQiskit(CustomPassManager):
             [FullAncillaAllocation(coupling), EnlargeWithAncilla(), ApplyLayout()]
         )
         pm.append(routing)
+        pm.append(OptimizeSwapBeforeMeasure())
         pm.append(Unroller(["u", "cx", "iswap", "swap"]))
         super().__init__(pm)
 

@@ -244,11 +244,11 @@ class SabreSwap(TransformationPass):
                 extended_set = None
 
                 # debug check, does front_layer only contain 2Q gates?
-                for node in front_layer:
-                    if len(node.qargs) != 2:
-                        print(
-                            "Check 1. Front layer contains a node with len(qarg) != 2"
-                        )
+                # for node in front_layer:
+                #     if len(node.qargs) != 2:
+                #         print(
+                #             "Check 1. Front layer contains a node with len(qarg) != 2"
+                #         )
 
                 continue
 
