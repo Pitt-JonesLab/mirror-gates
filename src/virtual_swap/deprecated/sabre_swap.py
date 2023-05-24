@@ -15,18 +15,13 @@ import logging
 from collections import defaultdict
 from copy import copy, deepcopy
 
-# XXX
-from itertools import permutations
-
 import numpy as np
-import rustworkx as retworkx
+import retworkx
 from qiskit.circuit.library.standard_gates import SwapGate
 from qiskit.dagcircuit import DAGOpNode
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
 from qiskit.transpiler.layout import Layout
-
-from virtual_swap.cns_transform import _get_node_cns
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +34,7 @@ DECAY_RATE = 0.001  # Decay coefficient for penalizing serial swaps.
 DECAY_RESET_INTERVAL = 5  # How often to reset all decay rates to 1.
 
 
-class CNS_SabreSwap(TransformationPass):
+class SabreSwap(TransformationPass):
     r"""Map input circuit onto a backend topology via insertion of SWAPs.
 
     Implementation of the SWAP-based heuristic search from the SABRE qubit
@@ -180,10 +175,6 @@ class CNS_SabreSwap(TransformationPass):
 
         # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
         mapped_dag = None
-
-        # XXX, tracking snaps to be appending to property_set at the end
-        mapped_dag_snaps = []
-
         if not self.fake_run:
             mapped_dag = dag.copy_empty_like()
 
@@ -202,16 +193,7 @@ class CNS_SabreSwap(TransformationPass):
         front_layer = dag.front_layer()
 
         while front_layer:
-            # XXX
-            # printing mapped_dag at each iteration
-            if mapped_dag is not None:
-                mapped_dag_snaps.append(mapped_dag.draw())
-
             execute_gate_list = []
-
-            # XXX
-            # tracking CNS sub candidates
-            cns_sub_candidates = []
 
             # Remove as many immediately applicable gates as possible
             new_front_layer = []
@@ -223,107 +205,18 @@ class CNS_SabreSwap(TransformationPass):
                     if self.coupling_map.graph.has_edge(
                         current_layout._v2p[v0], current_layout._v2p[v1]
                     ):
-                        # execute_gate_list.append(node)
-                        # XXX
-                        # Rather than appending a gate immediately to execute_gate_list
-                        # we want to track nodes that could potentially have a CNS
-                        if node.name in ["cx", "iswap"]:
-                            # track nodes in separate list
-                            cns_sub_candidates.append(node)
-                        else:
-                            execute_gate_list.append(node)
-                        # XXX
-
+                        execute_gate_list.append(node)
                     else:
                         new_front_layer.append(node)
                 else:  # Single-qubit gates as well as barriers are free
                     execute_gate_list.append(node)
             front_layer = new_front_layer
 
-            # rearranged, so that front_layer is formed before eval
-            # execute_gate_list node's successors are pushed into front_layer
-            # NOTE, we don't know if node in execute_gate_list will be node or node_prime
-            # but the successors of node don't change
-            find_successors = execute_gate_list + cns_sub_candidates
-            if find_successors:
-                for node in find_successors:
-                    for successor in self._successors(node, dag):
-                        self.required_predecessors[successor] -= 1
-                        if self._is_resolved(successor):
-                            front_layer.append(successor)
-
-                    if node.qargs:
-                        self._reset_qubits_decay()
-
-            # XXX
-            # new CNS trial_layout evaluation block,
-            # given a fully formed front_layer node list
-            # now we want to iteratively find if layout swaps from CNS are better
-            # NOTE could do 2^n permutations for n CNS subs,
-            # instead, we do iteratively and accept a layout swap if improves score
-
-            if front_layer:
-                # initialize
-                if extended_set is None:
-                    extended_set = self._obtain_extended_set(dag, front_layer)
-                accept_subs = {node: False for node in cns_sub_candidates}
-                best_score = self._score_heuristic(
-                    "lookahead", front_layer, extended_set, current_layout
-                )
-                trial_layout = current_layout.copy()
-
-                # iteratively test CNS subs
-                for node in cns_sub_candidates:
-                    trial_layout.swap(*node.qargs)
-                    score = self._score_heuristic(
-                        "lookahead", front_layer, extended_set, trial_layout
-                    )
-                    if score < best_score:
-                        best_score = score
-                        accept_subs[node] = True
-                    else:
-                        # undo the layout swap
-                        trial_layout.swap(*node.qargs)
-
-                # check all permutations of CNS subs
-                # XXX
-                for perm in permutations(cns_sub_candidates):
-                    trial_layout = current_layout.copy()
-                    for node in perm:
-                        trial_layout.swap(*node.qargs)
-                    score = self._score_heuristic(
-                        "lookahead", front_layer, extended_set, trial_layout
-                    )
-                    if score < best_score:
-                        best_score = score
-                        accept_subs = {node: False for node in cns_sub_candidates}
-                        for node in perm:
-                            accept_subs[node] = True
-                # XXX
-
-                # debug: print keys in accept_subs if True
-                # print([key for key in accept_subs if accept_subs[key]])
-
-                # push nodes into execute_gate_list
-                for node in cns_sub_candidates:
-                    if not accept_subs[node]:
-                        execute_gate_list.append(node)
-                    else:
-                        # convert node to node_prime
-                        node_prime = _get_node_cns(node)
-                        execute_gate_list.append(node_prime)
-
-            # (I think) this is last layer case, when front_layer is empty
-            # just push all nodes into execute_gate_list
-            # i.e. using node_prime won't make a difference
-            else:
-                execute_gate_list += cns_sub_candidates
-            # XXX
-
             if (
                 not execute_gate_list
                 and len(ops_since_progress) > max_iterations_without_progress
             ):
+                # print("HERE, backtracking")
                 # Backtrack to the last time we made progress, then greedily insert swaps to route
                 # the gate with the smallest distance between its arguments.  This is a release
                 # valve for the algorithm to avoid infinite loops only, and should generally not
@@ -334,34 +227,35 @@ class CNS_SabreSwap(TransformationPass):
                 )
                 continue
 
-            # NOTE, now execute_gate_list has proper node and node_primes
-            # push nodes into mapped_dag
             if execute_gate_list:
                 for node in execute_gate_list:
                     self._apply_gate(
                         mapped_dag, node, current_layout, canonical_register
                     )
+                    for successor in self._successors(node, dag):
+                        self.required_predecessors[successor] -= 1
+                        if self._is_resolved(successor):
+                            front_layer.append(successor)
 
-                # Diagnostics
-                if do_expensive_logging:
-                    logger.debug(
-                        "free! %s",
-                        [
-                            (n.name if isinstance(n, DAGOpNode) else None, n.qargs)
-                            for n in execute_gate_list
-                        ],
-                    )
-                    logger.debug(
-                        "front_layer: %s",
-                        [
-                            (n.name if isinstance(n, DAGOpNode) else None, n.qargs)
-                            for n in front_layer
-                        ],
-                    )
+                    if node.qargs:
+                        self._reset_qubits_decay()
 
                 ops_since_progress = []
                 extended_set = None
+
+                # debug check, does front_layer only contain 2Q gates?
+                for node in front_layer:
+                    if len(node.qargs) != 2:
+                        print(
+                            "Check 1. Front layer contains a node with len(qarg) != 2"
+                        )
+
                 continue
+
+            # debug check, does front_layer only contain 2Q gates?
+            for node in front_layer:
+                if len(node.qargs) != 2:
+                    print("Check 2. Front layer contains a node with len(qarg) != 2")
 
             # After all free gates are exhausted, heuristically find
             # the best swap and insert it. When two or more swaps tie
@@ -409,11 +303,8 @@ class CNS_SabreSwap(TransformationPass):
                 logger.debug("qubits decay: %s", self.qubits_decay)
 
         self.property_set["final_layout"] = current_layout
-        # XXX
-        self.property_set["mapped_dag_snaps"] = mapped_dag_snaps
         if not self.fake_run:
             return mapped_dag
-
         return dag
 
     def _apply_gate(self, mapped_dag, node, current_layout, canonical_register):
@@ -525,6 +416,9 @@ class CNS_SabreSwap(TransformationPass):
         cost = 0
         layout_map = layout._v2p
         for node in layer:
+            # XXX
+            if len(node.qargs) != 2:
+                print("BROKEN")
             cost += self.dist_matrix[
                 layout_map[node.qargs[0]], layout_map[node.qargs[1]]
             ]

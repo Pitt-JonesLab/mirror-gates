@@ -26,7 +26,11 @@ def _get_node_cns(node: DAGOpNode):
     """Get the CNS transformation for a given node."""
     if node.name == "cx":
         # return cx_replace.to_instruction()
-        return DAGOpNode(op=cx_replace.to_instruction(), qargs=node.qargs)
+        ret_node = DAGOpNode(op=cx_replace.to_instruction(), qargs=node.qargs)
+        if node.op.definition is not None:
+            print(node.op.definition.global_phase)
+            ret_node.op.definition.global_phase = node.op.definition.global_phase
+        return ret_node
     elif node.name == "iswap":
         # return iswap_replace.to_instruction()
         return DAGOpNode(op=iswap_replace.to_instruction(), qargs=node.qargs)
