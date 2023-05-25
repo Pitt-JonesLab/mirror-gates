@@ -20,7 +20,7 @@ from qiskit.transpiler.passmanager import PassManager
 from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
 
 from virtual_swap.cns_brute import CNS_Brute
-from virtual_swap.cns_sabre import CNS_SabreSwap
+from virtual_swap.cns_sabrev2 import CNS_SabreSwapV2
 from virtual_swap.deprecated.sabre_swap import SabreSwap
 
 
@@ -34,9 +34,9 @@ class CustomPassManager(PassManager):
             [
                 OptimizeSwapBeforeMeasure(),
                 Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
-                Collect2qBlocks(),
-                ConsolidateBlocks(force_consolidate=True),
-                RootiSwapWeylDecomposition(),
+                # Collect2qBlocks(),
+                # ConsolidateBlocks(force_consolidate=True),
+                # RootiSwapWeylDecomposition(),
             ]
         )
 
@@ -54,10 +54,10 @@ class BruteCNS(CustomPassManager):
         super().__init__(pm)
 
 
-class SabreCNS(CustomPassManager):
+class SabreCNSV2(CustomPassManager):
     def __init__(self, coupling):
         pm = PassManager()
-        routing = CNS_SabreSwap(coupling, heuristic="decay")
+        routing = CNS_SabreSwapV2(coupling, heuristic="lookahead")
         pm.append(SabreLayout(coupling, routing_pass=routing))
         pm.append(
             [FullAncillaAllocation(coupling), EnlargeWithAncilla(), ApplyLayout()]

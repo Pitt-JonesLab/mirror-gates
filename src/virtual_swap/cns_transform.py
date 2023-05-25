@@ -35,6 +35,10 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
         raise ValueError(f"Unsupported operation, {node.name}")
 
 
+# TODO, update so can take a list of nodes and sub them all
+# need to rework logic of using swap_wires a bit to make that work
+
+
 def _cns_transform(dag: DAGCircuit, h_node):
     """Alternative implementation, adds nodes into blank copy of dag."""
     new_dag = dag.copy_empty_like()
@@ -61,6 +65,7 @@ def _cns_transform(dag: DAGCircuit, h_node):
                 )
             else:
                 new_dag.apply_operation_back(node.op, node.qargs)
+
     # fix with a swap
     # new_dag.apply_operation_back(SwapGate(), h_node.qargs)
     return new_dag
