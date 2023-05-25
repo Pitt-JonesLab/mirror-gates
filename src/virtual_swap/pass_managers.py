@@ -7,9 +7,11 @@ from qiskit.transpiler.passes import (
     ConsolidateBlocks,
     EnlargeWithAncilla,
     FullAncillaAllocation,
+    OptimizeSwapBeforeMeasure,
     SabreLayout,
     Unroller,
-    OptimizeSwapBeforeMeasure,
+    TrivialLayout,
+    Optimize1qGates
 )
 from qiskit.transpiler.passmanager import PassManager
 
@@ -19,6 +21,7 @@ from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
 
 from virtual_swap.cns_sabre import CNS_SabreSwap
 from virtual_swap.deprecated.sabre_swap import SabreSwap
+from virtual_swap.cns_brute import CNS_Brute
 
 
 class CustomPassManager(PassManager):
@@ -27,17 +30,27 @@ class CustomPassManager(PassManager):
 
         # force this ending, such that output is normalized
         # we want all benchy PMs to count sqiswap gates
-        # self.pm.append(
-        #     [
-        #         Collect2qBlocks(),
-        #         ConsolidateBlocks(force_consolidate=True),
-        #         RootiSwapWeylDecomposition(),
-        #     ]
-        # )
+        self.pm.append(
+            [
+                OptimizeSwapBeforeMeasure(),
+                Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
+                Collect2qBlocks(),
+                ConsolidateBlocks(force_consolidate=True),
+                RootiSwapWeylDecomposition(),
+            ]
+        )
 
     def run(self, qc):
         return self.pm.run(qc)
-
+    
+class BruteCNS(CustomPassManager):
+    def __init__(self, coupling):
+        pm = PassManager()
+        pm.append(Unroller(["u", "cx", "iswap", "swap"]))
+        pm.append(TrivialLayout(coupling))
+        pm.append(CNS_Brute(coupling))
+        # pm.append(Unroller(["u", "cx", "iswap", "swap"]))
+        super().__init__(pm)
 
 class SabreCNS(CustomPassManager):
     def __init__(self, coupling):
@@ -48,7 +61,6 @@ class SabreCNS(CustomPassManager):
             [FullAncillaAllocation(coupling), EnlargeWithAncilla(), ApplyLayout()]
         )
         pm.append(routing)
-        pm.append(OptimizeSwapBeforeMeasure())
         pm.append(Unroller(["u", "cx", "iswap", "swap"]))
         super().__init__(pm)
 
@@ -61,13 +73,13 @@ class SabreCNS(CustomPassManager):
 class SabreQiskit(CustomPassManager):
     def __init__(self, coupling):
         pm = PassManager()
+        pm.append(Unroller(["u", "cx", "iswap", "swap"]))
         routing = SabreSwap(coupling, heuristic="decay")
         pm.append(SabreLayout(coupling, routing_pass=routing))
         pm.append(
             [FullAncillaAllocation(coupling), EnlargeWithAncilla(), ApplyLayout()]
         )
         pm.append(routing)
-        pm.append(OptimizeSwapBeforeMeasure())
         pm.append(Unroller(["u", "cx", "iswap", "swap"]))
         super().__init__(pm)
 

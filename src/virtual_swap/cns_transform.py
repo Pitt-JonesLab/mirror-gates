@@ -1,11 +1,12 @@
 """CNS Transformations for Virtual Swap."""
 import numpy as np
 from qiskit import QuantumCircuit
+from qiskit.circuit import Instruction
 from qiskit.dagcircuit import DAGCircuit, DAGNode, DAGOpNode
 
-# Global CNS Transformations. TODO move to _equiv.py
+# Global CNS Transformations
 # cx -> iswap
-cx_replace = QuantumCircuit(2, 0)
+cx_replace = QuantumCircuit(2, 0, name="iswap_prime")
 cx_replace.h(1)
 cx_replace.rz(-np.pi / 2, 0)
 cx_replace.rz(-np.pi / 2, 1)
@@ -14,7 +15,7 @@ cx_replace.h(0)
 cx_replace.draw("mpl")
 
 # iswap -> cx
-iswap_replace = QuantumCircuit(2, 0)
+iswap_replace = QuantumCircuit(2, 0, name="cx_prime")
 iswap_replace.rz(np.pi / 2, 0)
 iswap_replace.rz(np.pi / 2, 1)
 iswap_replace.h(1)
@@ -22,14 +23,10 @@ iswap_replace.cx(0, 1)
 iswap_replace.h(1)
 
 
-def _get_node_cns(node: DAGOpNode):
+def _get_node_cns(node: DAGOpNode) -> Instruction:
     """Get the CNS transformation for a given node."""
     if node.name == "cx":
-        # return cx_replace.to_instruction()
         ret_node = DAGOpNode(op=cx_replace.to_instruction(), qargs=node.qargs)
-        if node.op.definition is not None:
-            print(node.op.definition.global_phase)
-            ret_node.op.definition.global_phase = node.op.definition.global_phase
         return ret_node
     elif node.name == "iswap":
         # return iswap_replace.to_instruction()
@@ -51,14 +48,10 @@ def _cns_transform(dag: DAGCircuit, h_node):
     for node in dag.topological_op_nodes():
         # if node == h_node:
         if DAGNode.semantic_eq(node, h_node):
-            # TODO update to use _get_node_cns
-
-            if node.name == "cx":
-                new_dag.apply_operation_back(cx_replace.to_instruction(), node.qargs)
-            elif node.name == "iswap":
-                new_dag.apply_operation_back(iswap_replace.to_instruction(), node.qargs)
-            else:
-                raise ValueError(f"Unsupported operation, {node.name}")
+            # here we add the cns transformation, and use the flip flag
+            # flip_flag tells us from this gate onwards, qargs will reverse
+            # effectively, we are adding the virtual swap here
+            new_dag.apply_operation_back(_get_node_cns(node).op, node.qargs)
             flip_flag = True
 
         else:

@@ -15,11 +15,9 @@ import logging
 from collections import defaultdict
 from copy import copy, deepcopy
 
-# XXX
-from itertools import permutations
-
 import numpy as np
 import rustworkx as retworkx
+from qiskit.circuit import Instruction
 from qiskit.circuit.library.standard_gates import SwapGate
 from qiskit.dagcircuit import DAGOpNode
 from qiskit.transpiler.basepasses import TransformationPass
@@ -27,6 +25,10 @@ from qiskit.transpiler.exceptions import TranspilerError
 from qiskit.transpiler.layout import Layout
 
 from virtual_swap.cns_transform import _get_node_cns
+from virtual_swap.opnode_metadata import VsInstruction
+
+# XXX
+
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +166,16 @@ class CNS_SabreSwap(TransformationPass):
             TranspilerError: if the coupling map or the layout are not
             compatible with the DAG
         """
+
+        # update DAG to use nodes with metadata
+        for op_node in dag.op_nodes():
+            if isinstance(op_node.op, Instruction):
+                new_op = VsInstruction.from_Instruction(op_node.op)
+                new_op.metadata["cns_check"] = False
+                dag.substitute_node(op_node, new_op)
+            else:
+                raise Warning("op_node is not an Instruction")
+
         if len(dag.qregs) != 1 or dag.qregs.get("q", None) is None:
             raise TranspilerError("Sabre swap runs on physical circuits only.")
 
@@ -256,6 +268,11 @@ class CNS_SabreSwap(TransformationPass):
             find_successors = execute_gate_list + cns_sub_candidates
             if find_successors:
                 for node in find_successors:
+                    # check if node has been cns evaluated
+                    if node.op.metadata["cns_check"]:
+                        outer_cns_subs.append(node)
+                        continue
+
                     for successor in self._successors(node, dag):
                         self.required_predecessors[successor] -= 1
                         if self._is_resolved(successor):
@@ -299,33 +316,34 @@ class CNS_SabreSwap(TransformationPass):
                 trial_layout = current_layout.copy()
 
                 # iteratively test CNS subs
-                # for node in cns_sub_candidates:
-                #     trial_layout.swap(*node.qargs)
-                #     score = self._score_heuristic(
-                #         "lookahead", front_layer, extended_set, trial_layout
-                #     )
-                #     if score < best_score:
-                #         best_score = score
-                #         accept_subs[node] = True
-                #     else:
-                #         # undo the layout swap
-                #         trial_layout.swap(*node.qargs)
-
-                # check all permutations of CNS subs
-                # XXX
-                for perm in permutations(cns_sub_candidates):
-                    trial_layout = current_layout.copy()
-                    for node in perm:
-                        trial_layout.swap(*node.qargs)
+                for node in cns_sub_candidates:
+                    node.op.metadata["cns_check"] = True
+                    trial_layout.swap(*node.qargs)
                     score = self._score_heuristic(
                         "lookahead", front_layer, extended_set, trial_layout
                     )
                     if score < best_score:
                         best_score = score
-                        accept_subs = {node: False for node in cns_sub_candidates}
-                        for node in perm:
-                            accept_subs[node] = True
-                # XXX
+                        accept_subs[node] = True
+                    else:
+                        # undo the layout swap
+                        trial_layout.swap(*node.qargs)
+
+                # check all permutations of CNS subs
+                # # XXX
+                # for perm in permutations(cns_sub_candidates):
+                #     trial_layout = current_layout.copy()
+                #     for node in perm:
+                #         trial_layout.swap(*node.qargs)
+                #     score = self._score_heuristic(
+                #         "lookahead", front_layer, extended_set, trial_layout
+                #     )
+                #     if score < best_score:
+                #         best_score = score
+                #         accept_subs = {node: False for node in cns_sub_candidates}
+                #         for node in perm:
+                #             accept_subs[node] = True
+                # # XXX
 
                 # debug: print keys in accept_subs if True
                 # print([key for key in accept_subs if accept_subs[key]])
