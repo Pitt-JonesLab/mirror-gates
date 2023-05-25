@@ -7,11 +7,11 @@ from qiskit.transpiler.passes import (
     ConsolidateBlocks,
     EnlargeWithAncilla,
     FullAncillaAllocation,
+    Optimize1qGates,
     OptimizeSwapBeforeMeasure,
     SabreLayout,
-    Unroller,
     TrivialLayout,
-    Optimize1qGates
+    Unroller,
 )
 from qiskit.transpiler.passmanager import PassManager
 
@@ -19,9 +19,9 @@ from qiskit.transpiler.passmanager import PassManager
 # I can't use this version bc qiskit version missing DAGCircuit functionality
 from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
 
+from virtual_swap.cns_brute import CNS_Brute
 from virtual_swap.cns_sabre import CNS_SabreSwap
 from virtual_swap.deprecated.sabre_swap import SabreSwap
-from virtual_swap.cns_brute import CNS_Brute
 
 
 class CustomPassManager(PassManager):
@@ -42,7 +42,8 @@ class CustomPassManager(PassManager):
 
     def run(self, qc):
         return self.pm.run(qc)
-    
+
+
 class BruteCNS(CustomPassManager):
     def __init__(self, coupling):
         pm = PassManager()
@@ -51,6 +52,7 @@ class BruteCNS(CustomPassManager):
         pm.append(CNS_Brute(coupling))
         # pm.append(Unroller(["u", "cx", "iswap", "swap"]))
         super().__init__(pm)
+
 
 class SabreCNS(CustomPassManager):
     def __init__(self, coupling):

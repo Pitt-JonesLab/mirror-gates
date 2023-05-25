@@ -16,17 +16,14 @@ decomposition during the layout and routing stages. It is not intended
 for large-scale use due to its high computational complexity.
 """
 
-from copy import deepcopy
-from itertools import chain, combinations
-import numpy as np
-import retworkx
 import random
-from qiskit.dagcircuit import DAGOpNode
+from copy import deepcopy
+from itertools import combinations
+
+import numpy as np
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.coupling import CouplingMap
-from qiskit.transpiler.passes import Unroller
-from qiskit.transpiler.passes import SabreLayout, SabreSwap
-from tqdm import tqdm
+from qiskit.transpiler.passes import SabreLayout, SabreSwap, Unroller
 
 from virtual_swap.cns_transform import _get_node_cns
 
@@ -42,7 +39,7 @@ class CNS_Brute(TransformationPass):
         self.coupling_map = coupling_map
         self.layout_pass = layout_pass if layout_pass else SabreLayout(coupling_map)
         self.routing_pass = routing_pass if routing_pass else SabreSwap(coupling_map)
-    
+
     def run(self, dag):
         """Run the pass on the provided dag."""
         if self.property_set["layout"] is None:
@@ -69,11 +66,11 @@ class CNS_Brute(TransformationPass):
         # Iterate over all permutations of CNS substitutions
         for r in range(len(cns_sub_candidates) + 1):
             combs = list(combinations(cns_sub_candidates, r))
-            
+
             # Randomly select combinations if there are more than max_combinations
             if len(combs) > max_combinations:
                 combs = random.sample(combs, max_combinations)
-            
+
             for perm in combs:
                 # Create a copy of the original dag structure without operations (nodes)
                 trial_dag = dag.copy_empty_like()
@@ -89,13 +86,17 @@ class CNS_Brute(TransformationPass):
 
                     # If the node is in the permutation list, replace with its CNS sub
                     if node in perm:
-                        trial_dag.apply_operation_back(_get_node_cns(node).op, qargs_prime)
+                        trial_dag.apply_operation_back(
+                            _get_node_cns(node).op, qargs_prime
+                        )
                         save = wire_dict[node.qargs[0]]
                         wire_dict[node.qargs[0]] = wire_dict[node.qargs[1]]
                         wire_dict[node.qargs[1]] = save
                         # check that every value in wire_dict is unique
                         try:
-                            assert len(wire_dict.values()) == len(set(wire_dict.values()))
+                            assert len(wire_dict.values()) == len(
+                                set(wire_dict.values())
+                            )
                         except AssertionError:
                             print("wire_dict not unique")
                     else:
@@ -136,14 +137,17 @@ class CNS_Brute(TransformationPass):
 
         if self.save_all:
             # Sort all_dags, all_costs, and all_perms by all_costs
-            sorted_data = sorted(zip(self.all_dags, self.all_costs, self.all_perms), key=lambda x: x[1])
+            sorted_data = sorted(
+                zip(self.all_dags, self.all_costs, self.all_perms), key=lambda x: x[1]
+            )
             self.all_dags, self.all_costs, self.all_perms = zip(*sorted_data)
-            self.property_set.update({
-                "all_dags": self.all_dags,
-                "all_costs": self.all_costs,
-                "all_perms": self.all_perms
-            })
-
+            self.property_set.update(
+                {
+                    "all_dags": self.all_dags,
+                    "all_costs": self.all_costs,
+                    "all_perms": self.all_perms,
+                }
+            )
 
         # Return the best dag found
         return best_dag
@@ -168,7 +172,7 @@ class CNS_Brute(TransformationPass):
     #     return longest_path_length
 
     def calculate_gate_cost(self, dag):
-        """Force into sqiswap gates then calculate critical path cost"""
+        """Force into sqiswap gates then calculate critical path cost."""
         # Collect2qBlocks(),
         # ConsolidateBlocks(force_consolidate=True),
         # RootiSwapWeylDecomposition(),
