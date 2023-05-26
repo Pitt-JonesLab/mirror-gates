@@ -257,6 +257,36 @@ class CNS_SabreSwapV2(TransformationPass):
 
             # HERE, we have completed building the front layer
             # move things from interemediate layer into mapped dag
+
+            # clean the intermediate layer, fixes 1Q gates that follow possible cns subs
+            temp_1q_layer = []
+            if intermediate_layer:
+                for node in intermediate_layer:
+                    # FIXME, bad code repetition
+                    if len(node.qargs) != 2:
+                        continue
+                    node_successors = list(
+                        filter(lambda x: len(x.qargs) == 2, self._successors(node, dag))
+                    )
+                    # check that none of the node's successors are in intermediate_layer
+                    if any(
+                        [
+                            successor in intermediate_layer
+                            for successor in node_successors
+                        ]
+                    ):
+                        continue
+                    # now, we know this 2Q is a CNS sub candidate,
+                    # so need to move its 1Q gates if in intermediate_layer
+                    # move them to front_layer
+                    node_successors = list(
+                        filter(lambda x: len(x.qargs) == 1, self._successors(node, dag))
+                    )
+                    for successor in node_successors:
+                        if successor in intermediate_layer:
+                            temp_1q_layer.append(successor)
+                            intermediate_layer.remove(successor)
+                
             if intermediate_layer:
                 # print(intermediate_layer)
                 temp_intermediate_layer = intermediate_layer.copy()
@@ -277,6 +307,7 @@ class CNS_SabreSwapV2(TransformationPass):
                         self._apply_gate(
                             mapped_dag, node, current_layout, canonical_register
                         )
+   
                     elif node.name not in ["iswap", "cx"]:
                         self._apply_gate(
                             mapped_dag, node, current_layout, canonical_register
@@ -314,6 +345,12 @@ class CNS_SabreSwapV2(TransformationPass):
                     intermediate_layer.remove(node)
                 # current_layout <- trial_layout
                 current_layout = trial_layout
+
+                # put on 1Q gates from temp_1q_layer
+                for node in temp_1q_layer:
+                    self._apply_gate(
+                        mapped_dag, node, current_layout, canonical_register
+                    )
                 extended_set = None
                 continue
 

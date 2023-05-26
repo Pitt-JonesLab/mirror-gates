@@ -57,6 +57,9 @@ class BruteCNS(CustomPassManager):
 class SabreCNSV2(CustomPassManager):
     def __init__(self, coupling):
         pm = PassManager()
+        # XXX, force SABRE to only have 1 1Q gate between 2Q gates
+        # temp fix :)
+        pm.append(Optimize1qGates(["u", "cx", "iswap", "swap"]))
         routing = CNS_SabreSwapV2(coupling, heuristic="lookahead")
         pm.append(SabreLayout(coupling, routing_pass=routing))
         pm.append(
