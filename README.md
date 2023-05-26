@@ -32,23 +32,12 @@ Our experiments demonstrate significant reductions in circuit depth and swap cou
 
 _TODO: Insert the code snippet showing results or comparison chart here_
 
-## Future Work
+## Reference
 
-We aim to further optimize this approach and explore other potential applications. Stay tuned for more updates.
-
-## Contributions
-
-_TODO: Insert instructions on how to contribute to the project here_
-
-## License
-
-_TODO: Insert the licensing details here_
-
-## Acknowledgements
-
-Our work builds upon and is inspired by previous studies in the field, especially those highlighting the potential of replacing CNOTs with CNS gates. Our special thanks go to those researchers.
+_TODO:
 
 ## Citing Our Work
+_Paper in preparation_
 
 _TODO: Insert how to cite your work here_
 
