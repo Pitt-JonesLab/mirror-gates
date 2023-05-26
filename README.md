@@ -1,24 +1,55 @@
 # virtual-swap transpilation
+This project focuses on optimizing quantum transpilation by combining layout and routing stages with gate decomposition, primarily using the iSWAP gate and a unique concept of a "virtual swap" gate.
 
 ![Tests](https://github.com/Pitt-JonesLab/virtual-swap/actions/workflows/tests.yml/badge.svg?branch=main)
 ![Format Check](https://github.com/Pitt-JonesLab/virtual-swap/actions/workflows/format-check.yml/badge.svg?branch=main)
 
-This project is exploring SWAP gate that performed via physical-logical qubit remapping.
+## Project Overview
 
-<img src="images/vswap.png" width="200" />
+Traditionally, transpilation in quantum computing treats layout and routing as separate from gate decomposition. However, our work shows significant improvements in circuit depth and gate count by breaking this convention. We utilize the equivalence of the decomposition of CNOT and CNOT+SWAP operations into iSWAP gates and introduce the concept of "free" SWAP operations within the CNOT+SWAP sequence.
 
-In particular, we are interested in the following questions:
+## Key Features
 
-1. Can we use this vSWAP gate in routing algorithms to reduce the number of SWAP gates?
+1. **iSWAP Gate Recognition**: Our approach hinges on treating the iSWAP as a basis gate and understanding its role in decomposing two-qubit operations.
 
-2. Can we use vSWAP as a decomposition resource?
+2. **Virtual SWAP (vSWAP) Gate**: A novel aspect of our work is the introduction of a "virtual swap" gate, which helps to optimize circuit depth and swap count. This takes advantage of the "free" data movement within CNOT+SWAP operations.
 
-The main reason this works is due to an identity that:
-CX + SWAP = iSWAP.
+3. **Routing Algorithm**: We provide a routing algorithm that leverages the above features to minimize circuit depth and swap count.
 
-Considering circuits written in a CX basis, then introducing vSWAPS is a convienient way to decompose into the iSWAP basis, a gate more naturally supported by superocnducting qubits.
+_TODO: Insert the main algorithm or function code snippet here_
 
-<img src="images/decomp.png" width="200" />
+4. **Circuit Compression**: By integrating gate decomposition into layout and routing, our approach enhances circuit compression during transpilation, resulting in reduced circuit depth and gate count.
 
-Install this to draw the topologies
-`sudo apt install graphviz`
+_TODO: Insert the code snippet showing how circuit compression is enhanced here_
+
+## Getting Started
+
+_TODO: Insert instructions on how to install and run the project, including any dependencies here_
+
+## Results & Comparisons
+
+Our experiments demonstrate significant reductions in circuit depth and swap count compared to traditional methods across various topologies.
+
+_TODO: Insert the code snippet showing results or comparison chart here_
+
+## Future Work
+
+We aim to further optimize this approach and explore other potential applications. Stay tuned for more updates.
+
+## Contributions
+
+_TODO: Insert instructions on how to contribute to the project here_
+
+## License
+
+_TODO: Insert the licensing details here_
+
+## Acknowledgements
+
+Our work builds upon and is inspired by previous studies in the field, especially those highlighting the potential of replacing CNOTs with CNS gates. Our special thanks go to those researchers.
+
+## Citing Our Work
+
+_TODO: Insert how to cite your work here_
+
+We hope you find this project useful for your quantum computing endeavors. Feel free to reach out with any questions or suggestions.
