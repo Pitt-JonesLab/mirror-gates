@@ -20,7 +20,7 @@ from qiskit.transpiler.passmanager import PassManager
 from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
 
 from virtual_swap.cns_brute import CNS_Brute
-from virtual_swap.cns_sabrev2 import CNS_SabreSwapV2
+from virtual_swap.cns_sabre_v2 import CNS_SabreSwap_V2
 from virtual_swap.deprecated.sabre_swap import SabreSwap
 
 
@@ -60,7 +60,7 @@ class SabreCNSV2(CustomPassManager):
         # XXX, force SABRE to only have 1 1Q gate between 2Q gates
         # temp fix :)
         pm.append(Optimize1qGates(["u", "cx", "iswap", "swap"]))
-        routing = CNS_SabreSwapV2(coupling, heuristic="lookahead")
+        routing = CNS_SabreSwap_V2(coupling, heuristic="lookahead")
         pm.append(SabreLayout(coupling, routing_pass=routing))
         pm.append(
             [FullAncillaAllocation(coupling), EnlargeWithAncilla(), ApplyLayout()]

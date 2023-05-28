@@ -36,7 +36,7 @@ DECAY_RATE = 0.001  # Decay coefficient for penalizing serial swaps.
 DECAY_RESET_INTERVAL = 5  # How often to reset all decay rates to 1.
 
 
-class CNS_SabreSwapV2(TransformationPass):
+class CNS_SabreSwap_V2(TransformationPass):
     r"""Map input circuit onto a backend topology via insertion of SWAPs.
 
     Implementation of the SWAP-based heuristic search from the SABRE qubit
@@ -286,7 +286,7 @@ class CNS_SabreSwapV2(TransformationPass):
                         if successor in intermediate_layer:
                             temp_1q_layer.append(successor)
                             intermediate_layer.remove(successor)
-                
+
             if intermediate_layer:
                 # print(intermediate_layer)
                 temp_intermediate_layer = intermediate_layer.copy()
@@ -307,7 +307,7 @@ class CNS_SabreSwapV2(TransformationPass):
                         self._apply_gate(
                             mapped_dag, node, current_layout, canonical_register
                         )
-   
+
                     elif node.name not in ["iswap", "cx"]:
                         self._apply_gate(
                             mapped_dag, node, current_layout, canonical_register
