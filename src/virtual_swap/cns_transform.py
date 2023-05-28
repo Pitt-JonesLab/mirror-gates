@@ -34,7 +34,7 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
         raise ValueError(f"Unsupported operation, {node.name}")
 
 
-def _cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircuit:
+def cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircuit:
     """Transforms DAG by applying CNS transformations on multiple nodes.
 
     Args:
@@ -75,7 +75,7 @@ def _cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircu
 
 
 # legacy code, only works for a single node
-# def _cns_transform(dag: DAGCircuit, h_node, preserve_layout=False):
+# def cns_transform(dag: DAGCircuit, h_node, preserve_layout=False):
 #     """Alternative implementation, adds nodes into blank copy of dag."""
 #     new_dag = dag.copy_empty_like()
 

@@ -2,7 +2,7 @@ from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.quantum_info import Operator
 
-from virtual_swap.cns_transform import _cns_transform
+from virtual_swap.cns_transform import cns_transform
 
 
 def generate_circuit():
@@ -22,7 +22,7 @@ def generate_circuit():
     return qc
 
 
-def test_single_node_cns_transform():
+def test_single_nodecns_transform():
     # Generate the original circuit and calculate its operator
     qc_original = generate_circuit()
     dag_original = circuit_to_dag(qc_original)
@@ -32,7 +32,7 @@ def test_single_node_cns_transform():
     node_to_transform = dag_original.two_qubit_ops()[0]
 
     # Apply the CNS transformation
-    dag_transformed = _cns_transform(
+    dag_transformed = cns_transform(
         dag_original, node_to_transform, preserve_layout=True
     )
     qc_transformed = dag_to_circuit(dag_transformed)
@@ -41,7 +41,7 @@ def test_single_node_cns_transform():
     assert op_original.equiv(Operator(qc_transformed))
 
 
-def test_multiple_nodes_cns_transform():
+def test_multiple_nodescns_transform():
     # Generate the original circuit and calculate its operator
     qc_original = generate_circuit()
     dag_original = circuit_to_dag(qc_original)
@@ -52,7 +52,7 @@ def test_multiple_nodes_cns_transform():
     nodes_to_transform = dag_original.op_nodes()
 
     # Apply the CNS transformation
-    dag_transformed = _cns_transform(
+    dag_transformed = cns_transform(
         dag_original, *nodes_to_transform, preserve_layout=True
     )
     qc_transformed = dag_to_circuit(dag_transformed)
@@ -62,5 +62,5 @@ def test_multiple_nodes_cns_transform():
 
 
 if __name__ == "__main__":
-    test_single_node_cns_transform()
-    test_multiple_nodes_cns_transform()
+    test_single_nodecns_transform()
+    test_multiple_nodescns_transform()

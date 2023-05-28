@@ -19,9 +19,9 @@ from qiskit.transpiler.passmanager import PassManager
 # I can't use this version bc qiskit version missing DAGCircuit functionality
 from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
 
-from virtual_swap.cns_brute import CNS_Brute
-from virtual_swap.cns_sabre_v2 import CNS_SabreSwap_V2
+from virtual_swap.deprecated.cns_brute import CNS_Brute
 from virtual_swap.deprecated.sabre_swap import SabreSwap
+from virtual_swap.passes.cns_sabre_v2 import CNS_SabreSwap_V2
 
 
 class CustomPassManager(PassManager):
