@@ -22,7 +22,13 @@ this lets us unit test the CNS subs without worrying about data movement changes
 - use existing methods from parent class when possible
 - keep the run() simple and modular,
 - can use my own formatting and docuemntation style
+- handle all processing at the end, means can use cns_transform instead of _get_node_cns
 """
+
+import random
+from itertools import combinations
+
+from virtual_swap.cns_transform import _get_node_cns
 
 # NOTE, the current qiskit version uses a rust backend
 # we have in deprecated/ the original python implementation we modified in V2.
