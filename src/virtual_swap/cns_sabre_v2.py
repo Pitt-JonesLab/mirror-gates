@@ -74,6 +74,7 @@ class CNS_SabreSwap_V2(TransformationPass):
         heuristic="basic",
         seed=None,
         fake_run=False,
+        preserve_layout=False,
     ):
         r"""SabreSwap initializer.
 
@@ -139,6 +140,7 @@ class CNS_SabreSwap_V2(TransformationPass):
             self.coupling_map.make_symmetric()
 
         self.heuristic = heuristic
+        self.preserve_layout = preserve_layout
         self.seed = seed
         self.fake_run = fake_run
         self.required_predecessors = None

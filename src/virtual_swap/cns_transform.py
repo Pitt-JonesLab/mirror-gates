@@ -13,7 +13,6 @@ cx_replace.rz(-np.pi / 2, 0)
 cx_replace.rz(-np.pi / 2, 1)
 cx_replace.iswap(0, 1)
 cx_replace.h(0)
-cx_replace.draw("mpl")
 
 # iswap -> cx
 iswap_replace = QuantumCircuit(2, 0, name="cx_prime")
