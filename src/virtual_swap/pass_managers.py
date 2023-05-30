@@ -6,10 +6,15 @@ from abc import ABC, abstractmethod
 
 from qiskit.transpiler.passes import (
     ApplyLayout,
+    Collect2qBlocks,
+    ConsolidateBlocks,
     EnlargeWithAncilla,
     FullAncillaAllocation,
+    Optimize1qGates,
     OptimizeSwapBeforeMeasure,
+    RootiSwapWeylDecomposition,
     SabreLayout,
+    SabreSwap,
     Unroller,
 )
 
@@ -44,10 +49,10 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
         self.pm.append(
             [
                 OptimizeSwapBeforeMeasure(),
-                # Collect2qBlocks(),
-                # ConsolidateBlocks(force_consolidate=True),
-                # RootiSwapWeylDecomposition(),
-                # Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
+                Collect2qBlocks(),
+                ConsolidateBlocks(force_consolidate=True),
+                RootiSwapWeylDecomposition(),
+                Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
             ]
         )
 

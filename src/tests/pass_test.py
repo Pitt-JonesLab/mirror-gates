@@ -11,8 +11,9 @@ import pytest
 from qiskit.circuit.random import random_circuit
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import PassManager
+from qiskit.transpiler.coupling import CouplingMap
 
-from virtual_swap.passes.cns_sabre_v2 import CNS_SabreSwap_V2
+from virtual_swap.cns_sabre_v2 import CNS_SabreSwap_V2
 
 
 # Function to build circuits.
@@ -33,7 +34,8 @@ def transformation_passes():
 
     Modify this function to use your specific transformation passes.
     """
-    passes = [CNS_SabreSwap_V2()]
+    coupling_map = CouplingMap.from_grid(2, 2)
+    passes = [CNS_SabreSwap_V2(coupling_map)]
     return passes
 
 
