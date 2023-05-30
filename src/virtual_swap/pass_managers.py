@@ -6,11 +6,8 @@ from abc import ABC, abstractmethod
 
 from qiskit.transpiler.passes import (
     ApplyLayout,
-    Collect2qBlocks,
-    ConsolidateBlocks,
     EnlargeWithAncilla,
     FullAncillaAllocation,
-    Optimize1qGates,
     OptimizeSwapBeforeMeasure,
     SabreLayout,
     Unroller,
@@ -18,7 +15,6 @@ from qiskit.transpiler.passes import (
 
 # this code is buggy, see https://github.com/Qiskit/qiskit-terra/pull/9375
 # I can't use this version bc qiskit version missing DAGCircuit functionality
-from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
 from transpile_benchy.runner import AbstractRunner
 
 from virtual_swap.cns_sabre_v2 import CNS_SabreSwap_V2
@@ -31,9 +27,10 @@ from virtual_swap.sqiswap_equiv import RemoveIGates
 class LayoutRouteSqiswap(AbstractRunner, ABC):
     """Subclass for AbstractRunner implementing pre- and post-processing."""
 
-    def __init__(self, coupling):
+    def __init__(self, coupling, logger=None):
         """Initialize the runner."""
         self.coupling = coupling
+        self.logger = logger
         super().__init__()
 
     def pre_process(self):
@@ -43,13 +40,14 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
 
     def post_process(self):
         """Post-process the circuit after running."""
+        pass
         self.pm.append(
             [
                 OptimizeSwapBeforeMeasure(),
-                Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
-                Collect2qBlocks(),
-                ConsolidateBlocks(force_consolidate=True),
-                RootiSwapWeylDecomposition(),
+                # Collect2qBlocks(),
+                # ConsolidateBlocks(force_consolidate=True),
+                # RootiSwapWeylDecomposition(),
+                # Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
             ]
         )
 
@@ -84,7 +82,9 @@ class SabreCNSV2(LayoutRouteSqiswap):
         try:
             return super().run(circuit)
         finally:
-            print("Accepted CNS subs", self.pm.property_set["accept_subs"])
+            self.logger.info(
+                f"Accepted CNS subs: {self.pm.property_set['accept_subs']}"
+            )
 
 
 class SabreQiskit(LayoutRouteSqiswap):

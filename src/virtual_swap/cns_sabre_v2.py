@@ -327,7 +327,7 @@ class CNS_SabreSwap_V2(TransformationPass):
                             self.heuristic, front_layer, extended_set, trial_layout
                         )
 
-                        if sub_score <= no_sub_score:
+                        if sub_score < no_sub_score:
                             # apply the sub
                             self._apply_gate(
                                 mapped_dag,
