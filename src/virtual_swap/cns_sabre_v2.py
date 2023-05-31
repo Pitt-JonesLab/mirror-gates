@@ -318,13 +318,13 @@ class CNS_SabreSwap_V2(TransformationPass):
                         extended_set = self._obtain_extended_set(dag, front_layer)
                         # check score on trial_layout
                         no_sub_score = self._score_heuristic(
-                            self.heuristic, front_layer, extended_set, trial_layout
+                            "lookahead", front_layer, extended_set, trial_layout
                         )
                         # compare against score on node_prime
                         node_prime = _get_node_cns(node)
                         trial_layout.swap(*node_prime.qargs)
                         sub_score = self._score_heuristic(
-                            self.heuristic, front_layer, extended_set, trial_layout
+                            "lookahead", front_layer, extended_set, trial_layout
                         )
 
                         if sub_score < no_sub_score:
@@ -366,7 +366,7 @@ class CNS_SabreSwap_V2(TransformationPass):
                 trial_layout = current_layout.copy()
                 trial_layout.swap(*swap_qubits)
                 score = self._score_heuristic(
-                    self.heuristic, front_layer, extended_set, trial_layout, swap_qubits
+                    "decay", front_layer, extended_set, trial_layout, swap_qubits
                 )
                 swap_scores[swap_qubits] = score
             min_score = min(swap_scores.values())
