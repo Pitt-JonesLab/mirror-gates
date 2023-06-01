@@ -4,21 +4,15 @@
 # from qiskit.transpiler.passmanager import PassManager
 from abc import ABC, abstractmethod
 
-from qiskit import transpile
 from qiskit.transpiler.basepasses import AnalysisPass
 from qiskit.transpiler.passes import (
-    ApplyLayout,
     Collect2qBlocks,
     CommutativeCancellation,
     ConsolidateBlocks,
-    EnlargeWithAncilla,
-    FullAncillaAllocation,
     Optimize1qGates,
     OptimizeSwapBeforeMeasure,
     RemoveDiagonalGatesBeforeMeasure,
     RemoveResetInZeroState,
-    SabreLayout,
-    SabreSwap,
     Unroller,
 )
 from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
@@ -30,8 +24,11 @@ from transpile_benchy.runner import AbstractRunner
 from virtual_swap.cns_sabre_v2 import CNS_SabreSwap_V2
 
 # from virtual_swap.deprecated.cns_brute import CNS_Brute
-from virtual_swap.deprecated.sabre_swap import SabreSwap
+# from virtual_swap.deprecated.sabre_swap import SabreSwap
+from virtual_swap.sabre_layout import SabreLayout
 from virtual_swap.sqiswap_equiv import RemoveIGates
+
+NUM_TRIALS = 6  # (physical CPU_COUNT)
 
 
 class SaveCircuitProgress(AnalysisPass):
@@ -77,14 +74,23 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
                 SaveCircuitProgress(),
                 Collect2qBlocks(),
                 ConsolidateBlocks(force_consolidate=True),
-                RootiSwapWeylDecomposition(),
-                Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
-                # does not help for sqiswap, but maybe I need to add
-                # something inside of this function?
-                # not sure that any rules would apply
-                CommutativeCancellation(),
             ]
         )
+        if not self.cx_basis:
+            self.pm.append(
+                [
+                    RootiSwapWeylDecomposition(),
+                    Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
+                ]
+            )
+        else:
+            self.pm.append(Unroller(["u", "cx"]))
+            # self.pm.append(TwoQubitBasisDecomposer(gate=CXGate(), euler_basis = 'u')
+            # Optimize1qGates(basis=["cx", "iswap", "swap"]),
+        # does not help for sqiswap, but maybe I need to add
+        # something inside of this function?
+        # not sure that any rules would apply
+        self.pm.append(CommutativeCancellation())
 
     @abstractmethod
     def main_process(self):
@@ -100,22 +106,30 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
             return None
 
 
-class SabreCNSV2(LayoutRouteSqiswap):
+class SabreVS(LayoutRouteSqiswap):
     """Sabre CNS V2 pass manager."""
 
+    def __init__(self, coupling, cx_basis=False, logger=None):
+        self.cx_basis = cx_basis
+        super().__init__(coupling, logger)
+
     def main_process(self):
-        """Run SabreCNSV2."""
-        routing = CNS_SabreSwap_V2(
-            self.coupling, heuristic="decay", preserve_layout=True
+        """Run SabreVS."""
+        routing_method = CNS_SabreSwap_V2(coupling_map=self.coupling, trials=NUM_TRIALS)
+        layout_method = SabreLayout(
+            coupling_map=self.coupling,
+            routing_pass=routing_method,
+            layout_trials=NUM_TRIALS,
         )
-        self.pm.append(SabreLayout(self.coupling, routing_pass=routing))
-        self.pm.append(
-            [FullAncillaAllocation(self.coupling), EnlargeWithAncilla(), ApplyLayout()]
-        )
-        self.pm.append(routing)
+        self.pm.append(layout_method)
+        # self.pm.append(
+        #     [FullAncillaAllocation(self.coupling), EnlargeWithAncilla(), ApplyLayout()]
+        # )
+        # self.pm.append(routing_method)
 
     def run(self, circuit):
         """Run the transpiler on the circuit."""
+        return super().run(circuit)
         try:
             return super().run(circuit)
         finally:
@@ -128,14 +142,28 @@ class SabreCNSV2(LayoutRouteSqiswap):
 class SabreQiskit(LayoutRouteSqiswap):
     """Sabre Qiskit pass manager."""
 
+    def __init__(self, coupling, cx_basis=False):
+        self.cx_basis = cx_basis
+        super().__init__(coupling)
+
     def main_process(self):
         """Run SabreQiskit."""
-        routing = SabreSwap(self.coupling, heuristic="decay")
-        self.pm.append(SabreLayout(self.coupling, routing_pass=routing))
-        self.pm.append(
-            [FullAncillaAllocation(self.coupling), EnlargeWithAncilla(), ApplyLayout()]
+        # override trials,
+        # this is because when we override the routing for CNS, it doesn't allow parallel trials
+        # we set trials to 1 here in the qiskit baseline for normalization
+        # however, each transpiler still runs best of N runs
+        # routing_method = SabreSwap(coupling_map= self.coupling, trials=NUM_TRIALS)
+        # not specifying routing_pass, so it will use the default SabreSwap with trials=CPU_COUNT
+        layout_method = SabreLayout(
+            coupling_map=self.coupling, layout_trials=NUM_TRIALS
         )
-        self.pm.append(routing)
+        self.pm.append(layout_method)
+        # # NOTE, I think SabreLayout already does this
+        # # NVM, only if routing_pass is None
+        # self.pm.append(
+        #     [FullAncillaAllocation(self.coupling), EnlargeWithAncilla(), ApplyLayout()]
+        # )
+        # self.pm.append(routing_method)
 
 
 class QiskitTranspileRunner(LayoutRouteSqiswap):
@@ -156,10 +184,17 @@ class QiskitTranspileRunner(LayoutRouteSqiswap):
 # same as SabreQiskit, but need to test if level=3 has additional optimizations
 # SabreQiskit is just Layout/Routing, doesn't look for whatever other cancellations
 # that might be in level=3
-class QiskitLevel3(QiskitTranspileRunner):
-    def run(self, circuit):
-        transp = transpile(circuit, coupling_map=self.coupling, optimization_level=3)
-        return self.pm.run(transp)
+# class QiskitLevel3(QiskitTranspileRunner):
+#     def run(self, circuit):
+#         from qiskit.transpiler.passes.routing import SabreSwap
+#         # override trials,
+#         # this is because when we override the routing for CNS, it doesn't allow parallel trials
+#         # we set trials to 1 here in the qiskit baseline for normalization
+#         # however, each transpiler still runs best of N runs
+#         routing_method = SabreSwap(coupling_map= self.coupling, trials=1)
+#         layout_method = SabreLayout(coupling_map= self.coupling, layout_trials=1)
+#         transp = transpile(circuit, coupling_map=self.coupling, optimization_level=3, routing_method=routing_method, layout_method=layout_method)
+#         return self.pm.run(transp)
 
 
 # class BruteCNS(LayoutRouteSqiswap):

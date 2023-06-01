@@ -75,6 +75,7 @@ class CNS_SabreSwap_V2(TransformationPass):
         seed=None,
         fake_run=False,
         preserve_layout=False,
+        trials=1,
     ):
         r"""SabreSwap initializer.
 
@@ -147,8 +148,52 @@ class CNS_SabreSwap_V2(TransformationPass):
         self.qubits_decay = None
         self._bit_indices = None
         self.dist_matrix = None
+        self.trials = trials
 
     def run(self, dag):
+        """Run with multiple trials.
+
+        The original documentation, says to make this accept run that
+        added the least number of swaps, but maybe we instead want to
+        make this accept the run that has the lowest depth? This would
+        be more expensive, because we would want depth to be calculated
+        using our custom gate aware function.
+        """
+        best_dag, best_property_set = None, None
+        best_cost = None
+        rng = np.random.default_rng(self.seed)
+        for _ in range(self.trials):
+            inner_rng = np.random.default_rng(int(rng.random() * 2**32))
+            trial_dag, trial_property_set = self._nested_run(
+                dag, self.property_set, inner_rng
+            )
+            trial_cost = self.calculate_gate_cost(trial_dag)
+            if best_cost is None or trial_cost < best_cost:
+                best_dag, best_property_set = trial_dag, trial_property_set
+                best_cost = trial_cost
+        self.property_set = best_property_set
+        self.property_set["best_cns_cost"] = best_cost
+        return best_dag
+
+    # FIXME, this could be way faster if using monodromy
+    # rather than actually doing the decomposition, we just need to know the number of gates
+    def calculate_gate_cost(self, dag):
+        """Force into sqiswap gates then calculate critical path cost."""
+        temp_dag = deepcopy(dag)
+        from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks
+        from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
+
+        collect = Collect2qBlocks()
+        consolidate = ConsolidateBlocks(force_consolidate=True)
+        weyl = RootiSwapWeylDecomposition()
+        temp_dag = collect.run(temp_dag)
+        consolidate.property_set = collect.property_set
+        temp_dag = consolidate.run(temp_dag)
+        weyl.property_set = consolidate.property_set
+        temp_dag = weyl.run(temp_dag)
+        return len(temp_dag.two_qubit_ops())
+
+    def _nested_run(self, dag, trial_property_set, rng):
         """Run the SabreSwap pass on `dag`.
 
         Args:
@@ -174,8 +219,6 @@ class CNS_SabreSwap_V2(TransformationPass):
         do_expensive_logging = logger.isEnabledFor(logging.DEBUG)
 
         self.dist_matrix = self.coupling_map.distance_matrix
-
-        rng = np.random.default_rng(self.seed)
 
         # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
         mapped_dag = None
@@ -407,15 +450,15 @@ class CNS_SabreSwap_V2(TransformationPass):
                 self._apply_gate(mapped_dag, node, current_layout, canonical_register)
             intermediate_layer.remove(node)
 
-        self.property_set["final_layout"] = current_layout
+        trial_property_set["final_layout"] = current_layout
 
         # XXX
         # self.property_set["mapped_dag_snaps"] = mapped_dag_snaps
-        self.property_set["accept_subs"] = total_subs
+        trial_property_set["accept_subs"] = total_subs
 
         if not self.fake_run:
-            return mapped_dag
-        return dag
+            return mapped_dag, trial_property_set
+        return dag, trial_property_set
 
     def _apply_gate(self, mapped_dag, node, current_layout, canonical_register):
         new_node = _transform_gate_for_layout(node, current_layout, canonical_register)

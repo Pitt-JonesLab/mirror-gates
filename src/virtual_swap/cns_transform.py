@@ -23,6 +23,7 @@ iswap_replace.cx(0, 1)
 iswap_replace.h(1)
 
 
+# FIXME, monkeypatch for CR basis gate
 def _get_node_cns(node: DAGOpNode) -> Instruction:
     """Get the CNS transformation for a given node."""
     if node.name == "cx":
