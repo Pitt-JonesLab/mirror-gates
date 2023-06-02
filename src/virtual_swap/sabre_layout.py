@@ -24,7 +24,7 @@ import rustworkx as rx
 from qiskit._accelerate.nlayout import NLayout
 from qiskit._accelerate.sabre_layout import sabre_layout_and_routing
 from qiskit._accelerate.sabre_swap import Heuristic, NeighborTable
-from qiskit.converters import circuit_to_dag, dag_to_circuit
+from qiskit.converters import dag_to_circuit
 from qiskit.tools.parallel import CPU_COUNT
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
@@ -176,7 +176,7 @@ class SabreLayout(TransformationPass):
 
         # Choose a random initial_layout.
         if self.routing_pass is not None:
-            best_cost, best_layout, best_dag = None, None, None
+            best_cost, best_layout = None, None
 
             if self.seed is None:
                 seed = np.random.randint(0, np.iinfo(np.int32).max)
@@ -193,8 +193,7 @@ class SabreLayout(TransformationPass):
                     {q: dag.qubits[i] for i, q in enumerate(physical_qubits)}
                 )
 
-                # XXX modified so we can save time, keep the SWAPs from the routing pass
-                # self.routing_pass.fake_run = True
+                self.routing_pass.fake_run = True
 
                 # Do forward-backward iterations.
                 circ = dag_to_circuit(dag)
@@ -221,14 +220,12 @@ class SabreLayout(TransformationPass):
                 if best_cost is None or pm.property_set["best_cns_cost"] < best_cost:
                     best_cost = pm.property_set["best_cns_cost"]
                     best_layout = initial_layout
-                    best_dag = circuit_to_dag(new_circ)
 
-            # XXX modified so uses best
-            for qreg in best_dag.qregs.values():
+            for qreg in dag.qregs.values():
                 best_layout.add_register(qreg)
             self.property_set["layout"] = best_layout
-            # self.routing_pass.fake_run = False
-            return best_dag
+            self.routing_pass.fake_run = False
+            return dag
 
         dist_matrix = self.coupling_map.distance_matrix
         original_qubit_indices = {bit: index for index, bit in enumerate(dag.qubits)}

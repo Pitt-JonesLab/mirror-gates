@@ -6,9 +6,12 @@ from abc import ABC, abstractmethod
 
 from qiskit.transpiler.basepasses import AnalysisPass
 from qiskit.transpiler.passes import (
+    ApplyLayout,
     Collect2qBlocks,
     CommutativeCancellation,
     ConsolidateBlocks,
+    EnlargeWithAncilla,
+    FullAncillaAllocation,
     Optimize1qGates,
     OptimizeSwapBeforeMeasure,
     RemoveDiagonalGatesBeforeMeasure,
@@ -26,9 +29,12 @@ from virtual_swap.cns_sabre_v2 import CNS_SabreSwap_V2
 # from virtual_swap.deprecated.cns_brute import CNS_Brute
 # from virtual_swap.deprecated.sabre_swap import SabreSwap
 from virtual_swap.sabre_layout import SabreLayout
+
+# from qiskit.transpiler.passes import SabreLayout
 from virtual_swap.sqiswap_equiv import RemoveIGates
 
-NUM_TRIALS = 6  # (physical CPU_COUNT)
+LAYOUT_TRIALS = 6  # (physical CPU_COUNT)
+SWAP_TRIALS = 6  # makes it so much slower :(
 
 
 class SaveCircuitProgress(AnalysisPass):
@@ -99,6 +105,7 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
 
     def run(self, circuit):
         """Run the transpiler on the circuit."""
+        return self.pm.run(circuit)
         try:
             return super().run(circuit)
         except Exception as e:
@@ -115,17 +122,23 @@ class SabreVS(LayoutRouteSqiswap):
 
     def main_process(self):
         """Run SabreVS."""
-        routing_method = CNS_SabreSwap_V2(coupling_map=self.coupling, trials=NUM_TRIALS)
+        routing_method = CNS_SabreSwap_V2(
+            coupling_map=self.coupling, trials=SWAP_TRIALS
+        )
         layout_method = SabreLayout(
             coupling_map=self.coupling,
             routing_pass=routing_method,
-            layout_trials=NUM_TRIALS,
+            layout_trials=LAYOUT_TRIALS,
         )
         self.pm.append(layout_method)
-        # self.pm.append(
-        #     [FullAncillaAllocation(self.coupling), EnlargeWithAncilla(), ApplyLayout()]
-        # )
-        # self.pm.append(routing_method)
+
+        # FIXME, something is broken, circuit has SWAPs at the start of the circuit
+        # its not applying the initial layout correctly
+
+        self.pm.append(
+            [FullAncillaAllocation(self.coupling), EnlargeWithAncilla(), ApplyLayout()]
+        )
+        self.pm.append(routing_method)
 
     def run(self, circuit):
         """Run the transpiler on the circuit."""
@@ -155,7 +168,9 @@ class SabreQiskit(LayoutRouteSqiswap):
         # routing_method = SabreSwap(coupling_map= self.coupling, trials=NUM_TRIALS)
         # not specifying routing_pass, so it will use the default SabreSwap with trials=CPU_COUNT
         layout_method = SabreLayout(
-            coupling_map=self.coupling, layout_trials=NUM_TRIALS
+            coupling_map=self.coupling,
+            layout_trials=LAYOUT_TRIALS,
+            swap_trials=SWAP_TRIALS,
         )
         self.pm.append(layout_method)
         # # NOTE, I think SabreLayout already does this

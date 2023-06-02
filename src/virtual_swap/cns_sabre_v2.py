@@ -23,6 +23,7 @@ from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
 from qiskit.transpiler.layout import Layout
 
+# from concurrent.futures import ProcessPoolExecutor
 from virtual_swap.cns_transform import _get_node_cns
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,22 @@ EXTENDED_SET_WEIGHT = 0.5  # Weight of lookahead window compared to front_layer.
 
 DECAY_RATE = 0.001  # Decay coefficient for penalizing serial swaps.
 DECAY_RESET_INTERVAL = 5  # How often to reset all decay rates to 1.
+
+
+# class TrialProcess(Process):
+#     def __init__(self, parent, seed, dag, property_set, shared_dict):
+#         super().__init__()
+#         self.parent = parent
+#         self.seed = seed
+#         self.dag = dag
+#         self.property_set = property_set
+#         self.shared_dict = shared_dict
+
+#     def run(self):
+#         inner_rng = np.random.default_rng(int(self.seed * 2 ** 32))
+#         trial_dag, trial_property_set = self.parent._nested_run(self.dag, self.property_set, inner_rng)
+#         trial_cost = self.parent.calculate_gate_cost(trial_dag)
+#         self.shared_dict[self.seed] = (trial_dag, trial_property_set, trial_cost)
 
 
 class CNS_SabreSwap_V2(TransformationPass):
@@ -150,6 +167,33 @@ class CNS_SabreSwap_V2(TransformationPass):
         self.dist_matrix = None
         self.trials = trials
 
+    # def run(self, dag):
+    #     """Run with multiple trials in parallel."""
+    #     best_dag, best_property_set = None, None
+    #     best_cost = None
+    #     rng = np.random.default_rng(self.seed)
+
+    #     seeds = [int(rng.random() * 2 ** 32) for _ in range(self.trials)]
+
+    #     manager = Manager()
+    #     shared_dict = manager.dict()
+    #     processes = [TrialProcess(self, seed, dag, self.property_set, shared_dict) for seed in seeds]
+
+    #     for process in processes:
+    #         process.start()
+
+    #     for process in processes:
+    #         process.join()
+
+    #     for seed, (trial_dag, trial_property_set, trial_cost) in shared_dict.items():
+    #         if best_cost is None or trial_cost < best_cost:
+    #             best_dag, best_property_set = trial_dag, trial_property_set
+    #             best_cost = trial_cost
+
+    #     self.property_set = best_property_set
+    #     self.property_set["best_cns_cost"] = best_cost
+    #     return best_dag
+
     def run(self, dag):
         """Run with multiple trials.
 
@@ -180,12 +224,20 @@ class CNS_SabreSwap_V2(TransformationPass):
     def calculate_gate_cost(self, dag):
         """Force into sqiswap gates then calculate critical path cost."""
         temp_dag = deepcopy(dag)
-        from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks
+        from qiskit.transpiler.passes import (
+            Collect2qBlocks,
+            ConsolidateBlocks,
+            Unroller,
+        )
         from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
 
+        unroller = Unroller(["cx", "u", "swap", "iswap"])
+        # NOTE for some reason, iswap_primes don't get consolidated unless I unroll first
         collect = Collect2qBlocks()
         consolidate = ConsolidateBlocks(force_consolidate=True)
         weyl = RootiSwapWeylDecomposition()
+        temp_dag = unroller.run(temp_dag)
+        collect.property_set = unroller.property_set
         temp_dag = collect.run(temp_dag)
         consolidate.property_set = collect.property_set
         temp_dag = consolidate.run(temp_dag)
@@ -229,8 +281,12 @@ class CNS_SabreSwap_V2(TransformationPass):
 
         canonical_register = dag.qregs["q"]
         current_layout = Layout.generate_trivial_layout(canonical_register)
-
         self._bit_indices = {bit: idx for idx, bit in enumerate(canonical_register)}
+        # I thought this needed to start initial layout with whatever has applied in ApplyLayout
+        # NOTE, I thought I needed to do this, but actually the circuit already has been transformed
+        # so start with trivial layout, because gates have been rearranged for physical indexing
+        # current_layout = self.property_set["layout"].copy()
+        # self._bit_indices = current_layout.get_virtual_bits()
 
         # A decay factor for each qubit used to heuristically penalize recently
         # used qubits (to encourage parallelism).
