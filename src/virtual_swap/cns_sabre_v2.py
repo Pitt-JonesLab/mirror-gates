@@ -18,7 +18,7 @@ from copy import copy, deepcopy
 import numpy as np
 import retworkx
 from qiskit.circuit.library.standard_gates import SwapGate
-from qiskit.dagcircuit import DAGOpNode
+from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
 from qiskit.transpiler.layout import Layout
@@ -221,7 +221,7 @@ class CNS_SabreSwap_V2(TransformationPass):
 
     # FIXME, this could be way faster if using monodromy
     # rather than actually doing the decomposition, we just need to know the number of gates
-    def calculate_gate_cost(self, dag):
+    def calculate_gate_cost(self, dag: DAGCircuit):
         """Force into sqiswap gates then calculate critical path cost."""
         temp_dag = deepcopy(dag)
         from qiskit.transpiler.passes import (
@@ -243,7 +243,11 @@ class CNS_SabreSwap_V2(TransformationPass):
         temp_dag = consolidate.run(temp_dag)
         weyl.property_set = consolidate.property_set
         temp_dag = weyl.run(temp_dag)
-        return len(temp_dag.two_qubit_ops())
+        for node in temp_dag.op_nodes():
+            # only keep 2Q gates
+            if len(node.qargs) != 2:
+                temp_dag.remove_op_node(node)
+        return temp_dag.depth()
 
     def _nested_run(self, dag, trial_property_set, rng):
         """Run the SabreSwap pass on `dag`.
