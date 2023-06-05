@@ -3,7 +3,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.circuit import Instruction
 from qiskit.circuit.library import SwapGate
-from qiskit.dagcircuit import DAGCircuit, DAGNode, DAGOpNode
+from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 
 # Global CNS Transformations
 # cx -> iswap
@@ -55,7 +55,9 @@ def cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircui
         qargs = [layout.get(qarg, qarg) for qarg in node.qargs]
 
         # check if node is in list of nodes to be transformed
-        if any(DAGNode.semantic_eq(node, h_node) for h_node in h_nodes):
+        # FIXME, this is true multiple times, semantic_eq checks if is a CX but not if the exact same CX
+        if any(node == h_node for h_node in h_nodes):
+            # if any(DAGNode.semantic_eq(node, h_node) for h_node in h_nodes):
             try:  # checks if has a defined CNS transformation
                 node_prime = _get_node_cns(node)
                 new_dag.apply_operation_back(node_prime.op, qargs)

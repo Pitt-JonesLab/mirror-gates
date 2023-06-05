@@ -41,12 +41,16 @@ class SaveCircuitProgress(AnalysisPass):
     """Used to save the state of the circuit Mid-way through the transpiler,
     for debugging."""
 
+    def __init__(self, qc_name=None):
+        super().__init__()
+        self.qc_name = qc_name or "circuit_progress"
+
     def run(self, dag):
         # convert dag to circuit,
         # save into property_set
         from qiskit.converters import dag_to_circuit
 
-        self.property_set["circuit_progress"] = dag_to_circuit(dag)
+        self.property_set[self.qc_name] = dag_to_circuit(dag)
         return dag
 
 
@@ -63,6 +67,9 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
         """Pre-process the circuit before running."""
         self.pm.append(RemoveIGates())
         self.pm.append(Unroller(["u", "cx", "iswap", "swap"]))
+        self.pm.append(OptimizeSwapBeforeMeasure())
+        self.pm.append(RemoveResetInZeroState())
+        self.pm.append(RemoveDiagonalGatesBeforeMeasure())
 
     def post_process(self):
         """Post-process the circuit after running."""
@@ -76,6 +83,8 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
                 RemoveResetInZeroState(),
                 OptimizeSwapBeforeMeasure(),
                 RemoveDiagonalGatesBeforeMeasure(),
+                # this 1Q optimize is unnecessary, keeping it for cleaner mid circuits
+                Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
                 # debug, save current circuit to property_set
                 SaveCircuitProgress(),
                 Collect2qBlocks(),
@@ -105,7 +114,7 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
 
     def run(self, circuit):
         """Run the transpiler on the circuit."""
-        return self.pm.run(circuit)
+        # return self.pm.run(circuit)
         try:
             return super().run(circuit)
         except Exception as e:
@@ -132,17 +141,15 @@ class SabreVS(LayoutRouteSqiswap):
         )
         self.pm.append(layout_method)
 
-        # FIXME, something is broken, circuit has SWAPs at the start of the circuit
-        # its not applying the initial layout correctly
-
         self.pm.append(
             [FullAncillaAllocation(self.coupling), EnlargeWithAncilla(), ApplyLayout()]
         )
         self.pm.append(routing_method)
+        # self.pm.append(SaveCircuitProgress("mid0"))
 
     def run(self, circuit):
         """Run the transpiler on the circuit."""
-        return super().run(circuit)
+        # return super().run(circuit)
         try:
             return super().run(circuit)
         finally:

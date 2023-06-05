@@ -193,7 +193,7 @@ class SabreLayout(TransformationPass):
                     {q: dag.qubits[i] for i, q in enumerate(physical_qubits)}
                 )
 
-                self.routing_pass.fake_run = True
+                # self.routing_pass.fake_run = True
 
                 # Do forward-backward iterations.
                 circ = dag_to_circuit(dag)
@@ -224,6 +224,7 @@ class SabreLayout(TransformationPass):
             for qreg in dag.qregs.values():
                 best_layout.add_register(qreg)
             self.property_set["layout"] = best_layout
+            print("debug best layout cost", best_cost)
             self.routing_pass.fake_run = False
             return dag
 

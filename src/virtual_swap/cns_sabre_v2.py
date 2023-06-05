@@ -160,7 +160,7 @@ class CNS_SabreSwap_V2(TransformationPass):
         self.heuristic = heuristic
         self.preserve_layout = preserve_layout
         self.seed = seed
-        self.fake_run = fake_run
+        self.fake_run = False
         self.required_predecessors = None
         self.qubits_decay = None
         self._bit_indices = None
@@ -217,6 +217,7 @@ class CNS_SabreSwap_V2(TransformationPass):
                 best_cost = trial_cost
         self.property_set = best_property_set
         self.property_set["best_cns_cost"] = best_cost
+        # print("inner cost debug", best_cost)
         return best_dag
 
     # FIXME, this could be way faster if using monodromy
@@ -247,6 +248,7 @@ class CNS_SabreSwap_V2(TransformationPass):
             # only keep 2Q gates
             if len(node.qargs) != 2:
                 temp_dag.remove_op_node(node)
+        # print("debug calcualte_gate_cost",temp_dag.depth())
         return temp_dag.depth()
 
     def _nested_run(self, dag, trial_property_set, rng):
@@ -371,7 +373,10 @@ class CNS_SabreSwap_V2(TransformationPass):
                     if len(node.qargs) != 2:
                         continue
                     node_successors = list(
-                        filter(lambda x: len(x.qargs) == 2, self._successors(node, dag))
+                        filter(
+                            lambda x: isinstance(x, DAGOpNode) and len(x.qargs) == 2,
+                            list(dag.descendants(node)),
+                        )
                     )
                     # check that none of the node's successors are in intermediate_layer
                     if any(
@@ -385,7 +390,10 @@ class CNS_SabreSwap_V2(TransformationPass):
                     # so need to move its 1Q gates if in intermediate_layer
                     # move them to front_layer
                     node_successors = list(
-                        filter(lambda x: len(x.qargs) == 1, self._successors(node, dag))
+                        filter(
+                            lambda x: isinstance(x, DAGOpNode) and len(x.qargs) == 1,
+                            list(dag.descendants(node)),
+                        )
                     )
                     for successor in node_successors:
                         if successor in intermediate_layer:
@@ -400,7 +408,10 @@ class CNS_SabreSwap_V2(TransformationPass):
                     # if is a leaf node (in intermediate_layer), eval the cns subs
                     # remove 1Q gates from node_successors list
                     node_successors = list(
-                        filter(lambda x: len(x.qargs) == 2, self._successors(node, dag))
+                        filter(
+                            lambda x: isinstance(x, DAGOpNode) and len(x.qargs) == 2,
+                            list(dag.descendants(node)),
+                        )
                     )
                     # check that none of the node's successors are in intermediate_layer
                     if any(
@@ -430,7 +441,12 @@ class CNS_SabreSwap_V2(TransformationPass):
                             "lookahead", front_layer, extended_set, trial_layout
                         )
 
-                        if sub_score < no_sub_score:
+                        temp_accept_flag = False
+                        if sub_score == no_sub_score:
+                            # 50% chance of accept
+                            if rng.random() < 0.5:
+                                temp_accept_flag = True
+                        if sub_score < no_sub_score or temp_accept_flag:
                             # apply the sub
                             self._apply_gate(
                                 mapped_dag,
