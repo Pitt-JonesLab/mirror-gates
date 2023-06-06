@@ -33,8 +33,8 @@ from virtual_swap.sabre_layout import SabreLayout
 # from qiskit.transpiler.passes import SabreLayout
 from virtual_swap.sqiswap_equiv import RemoveIGates
 
-LAYOUT_TRIALS = 3  # (physical CPU_COUNT)
-SWAP_TRIALS = 3  # 6  # makes it so much slower :(
+LAYOUT_TRIALS = 6  # (physical CPU_COUNT)
+SWAP_TRIALS = 6  # 6  # makes it so much slower :(
 
 
 class SaveCircuitProgress(AnalysisPass):

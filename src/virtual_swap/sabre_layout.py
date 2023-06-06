@@ -224,7 +224,7 @@ class SabreLayout(TransformationPass):
             for qreg in dag.qregs.values():
                 best_layout.add_register(qreg)
             self.property_set["layout"] = best_layout
-            print("debug best layout cost", best_cost)
+            # print("debug best layout cost", best_cost)
             self.routing_pass.fake_run = False
             return dag
 
