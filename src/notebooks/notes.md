@@ -23,3 +23,14 @@ to be in intermediate layer, your predecssor is in mapped layer,
 to be in front layer, your predecessor is in intermediate or mapped layer.
 
 TODO - build a case by hand that differentiates (1) and (2). Think about 2 gates on different edges that are routable and make a change on the first gate - hint: depends on topology.
+
+### TODO
+
+- [] rewrite SabreCNS
+  - [] should take in 2Q gates w.r.t a basis
+  - [] should evaluate all gates for subs
+  - [] optional to trigger this behavior change
+  - [] need to print when this special sub is made
+  - [] whether to keep gates in front layer if their predecessors are still in the intermediate layer
+- [] parallel multiple attempts
+- [] documentation
