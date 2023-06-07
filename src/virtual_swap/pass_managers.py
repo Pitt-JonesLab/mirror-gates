@@ -63,10 +63,13 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
         self.logger = logger
         super().__init__()
 
+    # NOTE, these u and u3s is somewhat of a monkey fix :P
+    # I don't know why but Optimize1qGates was breaking
+
     def pre_process(self):
         """Pre-process the circuit before running."""
         self.pm.append(RemoveIGates())
-        self.pm.append(Unroller(["u", "cx", "iswap", "swap"]))
+        self.pm.append(Unroller(["u", "u3", "cx", "iswap", "swap"]))
         self.pm.append(OptimizeSwapBeforeMeasure())
         self.pm.append(RemoveResetInZeroState())
         self.pm.append(RemoveDiagonalGatesBeforeMeasure())
@@ -95,7 +98,7 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
             self.pm.append(
                 [
                     RootiSwapWeylDecomposition(),
-                    Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
+                    Optimize1qGates(basis=["u", "u3", "cx", "iswap", "swap"]),
                 ]
             )
         else:
@@ -114,7 +117,7 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
 
     def run(self, circuit):
         """Run the transpiler on the circuit."""
-        # return self.pm.run(circuit)
+        return self.pm.run(circuit)
         try:
             return super().run(circuit)
         except Exception as e:

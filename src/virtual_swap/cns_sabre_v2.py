@@ -17,11 +17,13 @@ from copy import copy, deepcopy
 
 import numpy as np
 import retworkx
-from qiskit.circuit.library.standard_gates import SwapGate
+from monodromy.depthPass import MonodromyDepth
+from qiskit.circuit.library.standard_gates import SwapGate, iSwapGate
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
 from qiskit.transpiler.layout import Layout
+from qiskit.transpiler.passes import Unroller
 
 # from concurrent.futures import ProcessPoolExecutor
 from virtual_swap.cns_transform import _get_node_cns
@@ -220,36 +222,48 @@ class CNS_SabreSwap_V2(TransformationPass):
         # print("inner cost debug", best_cost)
         return best_dag
 
+    # FIXME, this unroller needs to be removed, but because we haven't fully implemented using monodromy
+    # the consolidate pass doesn't push together cns gates,
+    # I actually don't know why, but unrolling before fixes this for the time being
+    def calculate_gate_cost(self, dag: DAGCircuit):
+        temp_dag = deepcopy(dag)
+        unroller = Unroller(["cx", "u", "swap", "iswap"])
+        temp_dag = unroller.run(temp_dag)
+        depth_pass = MonodromyDepth(basis_gate=iSwapGate().power(1 / 2))
+        depth_pass.property_set = unroller.property_set
+        temp_dag = depth_pass.run(temp_dag)
+        return depth_pass.property_set["monodromy_depth"]
+
     # FIXME, this could be way faster if using monodromy
     # rather than actually doing the decomposition, we just need to know the number of gates
-    def calculate_gate_cost(self, dag: DAGCircuit):
-        """Force into sqiswap gates then calculate critical path cost."""
-        temp_dag = deepcopy(dag)
-        from qiskit.transpiler.passes import (
-            Collect2qBlocks,
-            ConsolidateBlocks,
-            Unroller,
-        )
-        from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
+    # def calculate_gate_cost(self, dag: DAGCircuit):
+    #     """Force into sqiswap gates then calculate critical path cost."""
+    #     temp_dag = deepcopy(dag)
+    #     from qiskit.transpiler.passes import (
+    #         Collect2qBlocks,
+    #         ConsolidateBlocks,
+    #         Unroller,
+    #     )
+    #     from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
 
-        unroller = Unroller(["cx", "u", "swap", "iswap"])
-        # NOTE for some reason, iswap_primes don't get consolidated unless I unroll first
-        collect = Collect2qBlocks()
-        consolidate = ConsolidateBlocks(force_consolidate=True)
-        weyl = RootiSwapWeylDecomposition()
-        temp_dag = unroller.run(temp_dag)
-        collect.property_set = unroller.property_set
-        temp_dag = collect.run(temp_dag)
-        consolidate.property_set = collect.property_set
-        temp_dag = consolidate.run(temp_dag)
-        weyl.property_set = consolidate.property_set
-        temp_dag = weyl.run(temp_dag)
-        for node in temp_dag.op_nodes():
-            # only keep 2Q gates
-            if len(node.qargs) != 2:
-                temp_dag.remove_op_node(node)
-        # print("debug calcualte_gate_cost",temp_dag.depth())
-        return temp_dag.depth()
+    #     unroller = Unroller(["cx", "u", "swap", "iswap"])
+    #     # NOTE for some reason, iswap_primes don't get consolidated unless I unroll first
+    #     collect = Collect2qBlocks()
+    #     consolidate = ConsolidateBlocks(force_consolidate=True)
+    #     weyl = RootiSwapWeylDecomposition()
+    #     temp_dag = unroller.run(temp_dag)
+    #     collect.property_set = unroller.property_set
+    #     temp_dag = collect.run(temp_dag)
+    #     consolidate.property_set = collect.property_set
+    #     temp_dag = consolidate.run(temp_dag)
+    #     weyl.property_set = consolidate.property_set
+    #     temp_dag = weyl.run(temp_dag)
+    #     for node in temp_dag.op_nodes():
+    #         # only keep 2Q gates
+    #         if len(node.qargs) != 2:
+    #             temp_dag.remove_op_node(node)
+    #     # print("debug calcualte_gate_cost",temp_dag.depth())
+    #     return temp_dag.depth()
 
     def _nested_run(self, dag, trial_property_set, rng):
         """Run the SabreSwap pass on `dag`.

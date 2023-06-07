@@ -1,3 +1,435 @@
+## MQTBench, Grid3x4
+Metric: Depth, Circuit: ae, Transpiler: SabreQiskit
+  Best result: 14
+  Worst result: 18
+  Average result: 17.20
+  Standard error: 1.79
+Metric: Depth, Circuit: ae, Transpiler: SabreVS
+  Best result: 14
+  Worst result: 14
+  Average result: 14.00
+  Standard error: 0.00
+Metric: Depth, Circuit: dj, Transpiler: SabreQiskit
+  Best result: 6
+  Worst result: 7
+  Average result: 6.20
+  Standard error: 0.45
+Metric: Depth, Circuit: dj, Transpiler: SabreVS
+  Best result: 6
+  Worst result: 6
+  Average result: 6.00
+  Standard error: 0.00
+Metric: Depth, Circuit: grover-noancilla, Transpiler: SabreQiskit
+  Best result: 89
+  Worst result: 102
+  Average result: 93.00
+  Standard error: 5.20
+Metric: Depth, Circuit: grover-noancilla, Transpiler: SabreVS
+  Best result: 75
+  Worst result: 83
+  Average result: 76.60
+  Standard error: 3.58
+Metric: Depth, Circuit: grover-v-chain, Transpiler: SabreQiskit
+  Best result: 87
+  Worst result: 99
+  Average result: 93.00
+  Standard error: 4.90
+Metric: Depth, Circuit: grover-v-chain, Transpiler: SabreVS
+  Best result: 75
+  Worst result: 78
+  Average result: 76.20
+  Standard error: 1.64
+Metric: Depth, Circuit: ghz, Transpiler: SabreQiskit
+  Best result: 6
+  Worst result: 6
+  Average result: 6.00
+  Standard error: 0.00
+Metric: Depth, Circuit: ghz, Transpiler: SabreVS
+  Best result: 6
+  Worst result: 6
+  Average result: 6.00
+  Standard error: 0.00
+Metric: Depth, Circuit: graphstate, Transpiler: SabreQiskit
+  Best result: 6
+  Worst result: 6
+  Average result: 6.00
+  Standard error: 0.00
+Metric: Depth, Circuit: graphstate, Transpiler: SabreVS
+  Best result: 6
+  Worst result: 6
+  Average result: 6.00
+  Standard error: 0.00
+Metric: Depth, Circuit: portfolioqaoa, Transpiler: SabreQiskit
+  Best result: 40
+  Worst result: 54
+  Average result: 48.40
+  Standard error: 7.67
+Metric: Depth, Circuit: portfolioqaoa, Transpiler: SabreVS
+  Best result: 32
+  Worst result: 32
+  Average result: 32.00
+  Standard error: 0.00
+Metric: Depth, Circuit: portfoliovqe, Transpiler: SabreQiskit
+  Best result: 39
+  Worst result: 54
+  Average result: 51.00
+  Standard error: 6.71
+Metric: Depth, Circuit: portfoliovqe, Transpiler: SabreVS
+  Best result: 26
+  Worst result: 26
+  Average result: 26.00
+  Standard error: 0.00
+Metric: Depth, Circuit: qaoa, Transpiler: SabreQiskit
+  Best result: 10
+  Worst result: 10
+  Average result: 10.00
+  Standard error: 0.00
+Metric: Depth, Circuit: qaoa, Transpiler: SabreVS
+  Best result: 10
+  Worst result: 10
+  Average result: 10.00
+  Standard error: 0.00
+Metric: Depth, Circuit: qft, Transpiler: SabreQiskit
+  Best result: 17
+  Worst result: 20
+  Average result: 18.80
+  Standard error: 1.10
+Metric: Depth, Circuit: qft, Transpiler: SabreVS
+  Best result: 16
+  Worst result: 16
+  Average result: 16.00
+  Standard error: 0.00
+Metric: Depth, Circuit: qftentangled, Transpiler: SabreQiskit
+  Best result: 23
+  Worst result: 33
+  Average result: 27.60
+  Standard error: 4.56
+Metric: Depth, Circuit: qftentangled, Transpiler: SabreVS
+  Best result: 20
+  Worst result: 24
+  Average result: 20.80
+  Standard error: 1.79
+Metric: Depth, Circuit: qgan, Transpiler: SabreQiskit
+  Best result: 14
+  Worst result: 18
+  Average result: 17.20
+  Standard error: 1.79
+Metric: Depth, Circuit: qgan, Transpiler: SabreVS
+  Best result: 10
+  Worst result: 10
+  Average result: 10.00
+  Standard error: 0.00
+Metric: Depth, Circuit: qpeexact, Transpiler: SabreQiskit
+  Best result: 12
+  Worst result: 14
+  Average result: 12.80
+  Standard error: 1.10
+Metric: Depth, Circuit: qpeexact, Transpiler: SabreVS
+  Best result: 11
+  Worst result: 12
+  Average result: 11.50
+  Standard error: 0.58
+Metric: Depth, Circuit: qpeinexact, Transpiler: SabreQiskit
+  Best result: 19
+  Worst result: 21
+  Average result: 19.40
+  Standard error: 0.89
+Metric: Depth, Circuit: qpeinexact, Transpiler: SabreVS
+  Best result: 16
+  Worst result: 17
+  Average result: 16.40
+  Standard error: 0.55
+Metric: Depth, Circuit: realamprandom, Transpiler: SabreQiskit
+  Best result: 54
+  Worst result: 54
+  Average result: 54.00
+  Standard error: 0.00
+Metric: Depth, Circuit: realamprandom, Transpiler: SabreVS
+  Best result: 26
+  Worst result: 26
+  Average result: 26.00
+  Standard error: 0.00
+Metric: Depth, Circuit: su2random, Transpiler: SabreQiskit
+  Best result: 40
+  Worst result: 54
+  Average result: 49.20
+  Standard error: 6.72
+Metric: Depth, Circuit: su2random, Transpiler: SabreVS
+  Best result: 26
+  Worst result: 26
+  Average result: 26.00
+  Standard error: 0.00
+Metric: Depth, Circuit: twolocalrandom, Transpiler: SabreQiskit
+  Best result: 36
+  Worst result: 54
+  Average result: 50.40
+  Standard error: 8.05
+Metric: Depth, Circuit: twolocalrandom, Transpiler: SabreVS
+  Best result: 26
+  Worst result: 26
+  Average result: 26.00
+  Standard error: 0.00
+Metric: Depth, Circuit: vqe, Transpiler: SabreQiskit
+  Best result: 10
+  Worst result: 10
+  Average result: 10.00
+  Standard error: 0.00
+Metric: Depth, Circuit: vqe, Transpiler: SabreVS
+  Best result: 10
+  Worst result: 10
+  Average result: 10.00
+  Standard error: 0.00
+Metric: Depth, Circuit: wstate, Transpiler: SabreQiskit
+  Best result: 10
+  Worst result: 10
+  Average result: 10.00
+  Standard error: 0.00
+Metric: Depth, Circuit: wstate, Transpiler: SabreVS
+  Best result: 10
+  Worst result: 10
+  Average result: 10.00
+  Standard error: 0.00
+
+## QFT Benchmark, Square6x6, LAYOUT_TRIALS=6, SWAP_TRIALS=6, N=5
+INFO:transpile_benchy:Running benchmarks for circuits...
+Running circuits for QiskitFunctionInterface:   0%|          | 0/9 [00:00<?, ?it/s]DEBUG:transpile_benchy:Running benchmark for circuit qft_4
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_4
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_4
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 18
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_4
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_4
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 18
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_4
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_4
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 18
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_4
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_4
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 18
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_4
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_4
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 18
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_4
+INFO:transpile_benchy:Accepted CNS subs: 2
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_4
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 12
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_4
+INFO:transpile_benchy:Accepted CNS subs: 4
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_4
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 13
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_4
+INFO:transpile_benchy:Accepted CNS subs: 2
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_4
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 12
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_4
+INFO:transpile_benchy:Accepted CNS subs: 4
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_4
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 13
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_4
+INFO:transpile_benchy:Accepted CNS subs: 2
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_4
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 12
+Running circuits for QiskitFunctionInterface:  11%|█         | 1/9 [00:33<04:28, 33.57s/it]DEBUG:transpile_benchy:Running benchmark for circuit qft_8
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_8
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_8
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 59
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_8
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_8
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 62
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_8
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_8
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 60
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_8
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_8
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 60
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_8
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_8
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 59
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_8
+INFO:transpile_benchy:Accepted CNS subs: 8
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_8
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 67
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_8
+INFO:transpile_benchy:Accepted CNS subs: 11
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_8
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 68
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_8
+INFO:transpile_benchy:Accepted CNS subs: 15
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_8
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 50
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_8
+INFO:transpile_benchy:Accepted CNS subs: 15
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_8
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 51
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_8
+INFO:transpile_benchy:Accepted CNS subs: 12
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_8
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 67
+Running circuits for QiskitFunctionInterface:  22%|██▏       | 2/9 [03:00<11:43, 100.44s/it]DEBUG:transpile_benchy:Running benchmark for circuit qft_12
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_12
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_12
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 123
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_12
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_12
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 119
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_12
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_12
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 92
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_12
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_12
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 127
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_12
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_12
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 107
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_12
+INFO:transpile_benchy:Accepted CNS subs: 28
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_12
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 125
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_12
+INFO:transpile_benchy:Accepted CNS subs: 37
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_12
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 120
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_12
+INFO:transpile_benchy:Accepted CNS subs: 35
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_12
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 108
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_12
+INFO:transpile_benchy:Accepted CNS subs: 31
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_12
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 102
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_12
+INFO:transpile_benchy:Accepted CNS subs: 24
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_12
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 110
+Running circuits for QiskitFunctionInterface:  33%|███▎      | 3/9 [09:08<22:13, 222.28s/it]DEBUG:transpile_benchy:Running benchmark for circuit qft_16
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_16
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_16
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 165
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_16
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_16
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 191
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_16
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_16
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 185
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_16
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_16
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 179
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_16
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_16
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 178
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_16
+INFO:transpile_benchy:Accepted CNS subs: 65
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_16
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 174
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_16
+INFO:transpile_benchy:Accepted CNS subs: 56
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_16
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 185
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_16
+INFO:transpile_benchy:Accepted CNS subs: 51
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_16
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 181
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_16
+INFO:transpile_benchy:Accepted CNS subs: 49
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_16
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 153
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_16
+INFO:transpile_benchy:Accepted CNS subs: 47
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_16
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 158
+Running circuits for QiskitFunctionInterface:  44%|████▍     | 4/9 [21:18<35:14, 422.90s/it]DEBUG:transpile_benchy:Running benchmark for circuit qft_20
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_20
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_20
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 215
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_20
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_20
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 223
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_20
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_20
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 292
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_20
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_20
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 222
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_20
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_20
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 280
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_20
+INFO:transpile_benchy:Accepted CNS subs: 74
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_20
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 255
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_20
+INFO:transpile_benchy:Accepted CNS subs: 80
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_20
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 236
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_20
+INFO:transpile_benchy:Accepted CNS subs: 67
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_20
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 228
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_20
+INFO:transpile_benchy:Accepted CNS subs: 89
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_20
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 245
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_20
+INFO:transpile_benchy:Accepted CNS subs: 71
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_20
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 196
+Running circuits for QiskitFunctionInterface:  56%|█████▌    | 5/9 [1:24:51<1:49:42, 1645.54s/it]DEBUG:transpile_benchy:Running benchmark for circuit qft_24
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_24
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_24
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 317
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_24
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_24
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 277
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_24
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_24
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 258
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_24
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_24
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 295
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_24
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_24
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 379
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_24
+INFO:transpile_benchy:Accepted CNS subs: 100
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_24
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 334
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_24
+INFO:transpile_benchy:Accepted CNS subs: 122
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_24
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 333
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_24
+INFO:transpile_benchy:Accepted CNS subs: 135
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_24
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 313
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_24
+INFO:transpile_benchy:Accepted CNS subs: 125
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_24
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 285
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_24
+INFO:transpile_benchy:Accepted CNS subs: 97
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_24
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 309
+Running circuits for QiskitFunctionInterface:  67%|██████▋   | 6/9 [1:57:09<1:27:14, 1744.96s/it]DEBUG:transpile_benchy:Running benchmark for circuit qft_28
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_28
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_28
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 393
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_28
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_28
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 386
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_28
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_28
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 392
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_28
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_28
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 393
+DEBUG:transpile_benchy:Running transpiler SabreQiskit on circuit qft_28
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_28
+INFO:transpile_benchy:Transpiler SabreQiskit, Depth: 387
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_28
+INFO:transpile_benchy:Accepted CNS subs: 153
+DEBUG:transpile_benchy:Calculating Depth for circuit qft_28
+INFO:transpile_benchy:Transpiler SabreVS, Depth: 364
+DEBUG:transpile_benchy:Running transpiler SabreVS on circuit qft_28
+
 ## QASMBench Medium, Square6x6, LAYOUT_TRIALS=6, SWAP_TRIALS=6, N=5
 
 Metric: Depth, Circuit: multiplier_n15, Transpiler: SabreQiskit
