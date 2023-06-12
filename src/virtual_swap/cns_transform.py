@@ -1,9 +1,14 @@
 """CNS Transformations for Virtual Swap."""
+import warnings
+
 import numpy as np
+from monodromy.depthPass import MonodromyDepth
 from qiskit import QuantumCircuit
 from qiskit.circuit import Instruction
-from qiskit.circuit.library import SwapGate
+from qiskit.circuit.library import SwapGate, iSwapGate
+from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
+from weylchamber import c1c2c3
 
 # Global CNS Transformations
 # cx -> iswap
@@ -22,16 +27,43 @@ iswap_replace.h(1)
 iswap_replace.cx(0, 1)
 iswap_replace.h(1)
 
+# generic cases without 1Q solutions yet
 
-# FIXME, monkeypatch for CR basis gate
+depth_calc = MonodromyDepth(basis_gate=iSwapGate().power(1 / 2))
+
+
+# TODO generalize to arbitrary input
 def _get_node_cns(node: DAGOpNode) -> Instruction:
     """Get the CNS transformation for a given node."""
-    if node.name == "cx":
+    if len(node.qargs) != 2:
+        raise ValueError("Only supports 2Q gates")
+    if node.name == "cx" or c1c2c3(node.op.to_matrix()) == (0.5, 0, 0):
         return DAGOpNode(op=cx_replace.to_instruction(), qargs=node.qargs)
-    elif node.name == "iswap":
+    elif node.name == "iswap" or c1c2c3(node.op.to_matrix()) == (0.5, 0.5, 0):
         return DAGOpNode(op=iswap_replace.to_instruction(), qargs=node.qargs)
+
     else:
-        raise ValueError(f"Unsupported operation, {node.name}")
+        # can write a generic sub, but without solutions for 1Q gates
+        warnings.warn(f"Unsupported operation, {node.name}, Use generic monodromy sub")
+        # make a temp circuit
+        temp_circuit = QuantumCircuit(2)
+        temp_circuit.append(node.op, node.qargs)
+        temp_circuit.swap(0, 1)
+        # get the depth w.r.t sqiswap basis gate
+        temp_dag = circuit_to_dag(temp_circuit)
+        depth_calc.run(temp_dag)
+        depth = depth_calc.property_set["monodromy_depth"]
+        # create a new DAGOpNode using sqiswap basis gate applied #depth times
+        temp_circuit = QuantumCircuit(2)
+        for _ in range(depth):
+            temp_circuit.append(iswap_replace.to_instruction(), node.qargs)
+            # place some garbage 1Q gates
+            temp_circuit.h(0)
+            temp_circuit.h(1)
+        return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
+
+    # else:
+    #     raise ValueError(f"Unsupported operation, {node.name}")
 
 
 def cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircuit:
