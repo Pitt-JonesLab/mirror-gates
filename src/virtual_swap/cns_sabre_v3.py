@@ -36,7 +36,7 @@ from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler import TranspilerError
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.layout import Layout
-from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks, Unroller
+from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks
 
 from virtual_swap.cns_transform import _get_node_cns
 
@@ -80,13 +80,21 @@ class ParallelSabreSwapVS(TransformationPass):
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
         return best_result
 
-    # Implement this according to your scoring needs
+    # def run(self, dag: DAGCircuit) -> DAGCircuit:
+    #     self.dag = dag  # Store the dag in self so it can be accessed by run_single_trial
+    #     results = [self.run_single_trial(i) for i in range(self.num_trials)]
+    #     best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
+    #     self.property_set["final_layout"] = best_property_set["final_layout"]
+    #     self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
+    #     return best_result
+
     def calculate_score(self, result: DAGCircuit):
-        unroller = Unroller(["cx", "u", "swap", "iswap"])
-        temp_dag = unroller.run(result)
+        # XXX is this unroll still necessary before the consolidation?
+        # unroller = Unroller(["cx", "u", "swap", "iswap"])
+        # temp_dag = unroller.run(result)
         depth_pass = MonodromyDepth(basis_gate=iSwapGate().power(1 / 2))
-        depth_pass.property_set = unroller.property_set
-        temp_dag = depth_pass.run(temp_dag)
+        # depth_pass.property_set = unroller.property_set
+        depth_pass.run(result)
         return depth_pass.property_set["monodromy_depth"]
 
 

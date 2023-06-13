@@ -6,22 +6,26 @@ NOTE: sel is global, so just import this file before calling transpile.
 import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.circuit.equivalence_library import SessionEquivalenceLibrary as sel
-from qiskit.circuit.library.standard_gates import CXGate, SwapGate, XXPlusYYGate
+from qiskit.circuit.library.standard_gates import (
+    CXGate,
+    SwapGate,
+    XXPlusYYGate,
+    iSwapGate,
+)
 from qiskit.transpiler.basepasses import TransformationPass
 
-# FIXME dummy values
-
 cx_decomp = QuantumCircuit(2)
-cx_decomp.u(np.pi / 4, 0, np.pi / 2, 0)
-cx_decomp.u(np.pi / 4, 0, np.pi / 2, 1)
-cx_decomp.append(XXPlusYYGate(np.pi / 2, 0), [0, 1])
-cx_decomp.u(np.pi / 4, 0, np.pi / 2, 0)
-cx_decomp.u(np.pi / 4, 0, np.pi / 2, 1)
-cx_decomp.append(XXPlusYYGate(np.pi / 2), [0, 1])
-cx_decomp.u(np.pi / 4, 0, np.pi / 2, 0)
-cx_decomp.u(np.pi / 4, 0, np.pi / 2, 1)
+cx_decomp.u(np.pi / 2, -np.pi / 2, 0, 0)
+cx_decomp.u(np.pi / 2, np.pi, -np.pi / 2, 1)
+cx_decomp.append(iSwapGate().power(1 / 2), [0, 1])
+cx_decomp.u(np.pi, -np.pi / 2, np.pi / 2, 0)
+cx_decomp.u(0, 0, np.pi, 1)
+cx_decomp.append(iSwapGate().power(1 / 2), [0, 1])
+cx_decomp.u(np.pi / 2, -np.pi / 2, -3 * np.pi / 2, 0)
+cx_decomp.u(0, -np.pi / 2, -np.pi, 1)
 sel.add_equivalence(CXGate(), cx_decomp)
 
+# FIXME dummy values
 swap_decomp = QuantumCircuit(2)
 swap_decomp.u(np.pi / 4, 0, np.pi / 2, 0)
 swap_decomp.u(np.pi / 4, 0, np.pi / 2, 1)

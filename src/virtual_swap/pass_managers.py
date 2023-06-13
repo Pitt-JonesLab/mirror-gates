@@ -5,28 +5,28 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
+from monodromy.depthPass import MonodromyDepth
+from qiskit.circuit.library import iSwapGate
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.transpiler.basepasses import AnalysisPass, TransformationPass
 from qiskit.transpiler.passes import (
     ApplyLayout,
-    Collect2qBlocks,
     CommutativeCancellation,
-    ConsolidateBlocks,
     EnlargeWithAncilla,
     FullAncillaAllocation,
-    Optimize1qGates,
     OptimizeSwapBeforeMeasure,
+    RemoveBarriers,
     RemoveDiagonalGatesBeforeMeasure,
+    RemoveFinalMeasurements,
     RemoveResetInZeroState,
     Unroller,
 )
-from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
 
 # this code is buggy, see https://github.com/Qiskit/qiskit-terra/pull/9375
 # I can't use this version bc qiskit version missing DAGCircuit functionality
 from transpile_benchy.runner import AbstractRunner
 
-from virtual_swap.cns_sabre_v3 import ParallelSabreSwapVS
+from virtual_swap.cns_sabre_v3 import SabreSwapVS
 
 # from virtual_swap.deprecated.cns_brute import CNS_Brute
 # from virtual_swap.deprecated.sabre_swap import SabreSwap
@@ -84,6 +84,8 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
     def pre_process(self):
         """Pre-process the circuit before running."""
         self.pm.append(RemoveIGates())
+        self.pm.append(RemoveBarriers())
+        self.pm.append(RemoveFinalMeasurements())
         self.pm.append(AssignAllParameters())
         self.pm.append(Unroller(["u", "u3", "cx", "iswap", "swap"]))
         self.pm.append(OptimizeSwapBeforeMeasure())
@@ -98,33 +100,34 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
                 # adding this unroller fixes issue
                 # consolidate block was not pushing together
                 # the iswap_primes and 2Q blocks
-                Unroller(["u", "cx", "iswap", "swap"]),
+                # Unroller(["u", "cx", "iswap", "swap"]),
                 RemoveResetInZeroState(),
                 OptimizeSwapBeforeMeasure(),
                 RemoveDiagonalGatesBeforeMeasure(),
                 # this 1Q optimize is unnecessary, keeping it for cleaner mid circuits
-                Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
+                # Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
                 # debug, save current circuit to property_set
                 SaveCircuitProgress(),
-                Collect2qBlocks(),
-                ConsolidateBlocks(force_consolidate=True),
+                # Collect2qBlocks(),
+                # ConsolidateBlocks(force_consolidate=True),
             ]
         )
-        if not self.cx_basis:
-            self.pm.append(
-                [
-                    RootiSwapWeylDecomposition(),
-                    Optimize1qGates(basis=["u", "u3", "cx", "iswap", "swap"]),
-                ]
-            )
-        else:
-            self.pm.append(Unroller(["u", "cx"]))
-            # self.pm.append(TwoQubitBasisDecomposer(gate=CXGate(), euler_basis = 'u')
-            # Optimize1qGates(basis=["cx", "iswap", "swap"]),
+        # if not self.cx_basis:
+        #     self.pm.append(
+        #         [
+        #             RootiSwapWeylDecomposition(),
+        #             Optimize1qGates(basis=["u", "u3", "cx", "iswap", "swap"]),
+        #         ]
+        #     )
+        # else:
+        #     self.pm.append(Unroller(["u", "cx"]))
+        # self.pm.append(TwoQubitBasisDecomposer(gate=CXGate(), euler_basis = 'u')
+        # Optimize1qGates(basis=["cx", "iswap", "swap"]),
         # does not help for sqiswap, but maybe I need to add
         # something inside of this function?
         # not sure that any rules would apply
         self.pm.append(CommutativeCancellation())
+        self.pm.append(MonodromyDepth(basis_gate=iSwapGate().power(1 / 2)))
 
     @abstractmethod
     def main_process(self):
@@ -133,7 +136,7 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
 
     def run(self, circuit):
         """Run the transpiler on the circuit."""
-        return self.pm.run(circuit)
+        # return self.pm.run(circuit)
         try:
             return super().run(circuit)
         except Exception as e:
@@ -149,11 +152,11 @@ class SabreVS(LayoutRouteSqiswap):
         super().__init__(coupling, logger)
 
     def main_process(self):
-        """Run SabreVS."""
-        routing_method = ParallelSabreSwapVS(
-            coupling_map=self.coupling, trials=SWAP_TRIALS
-        )
-        # routing_method = SabreSwapVS(coupling_map=self.coupling)
+        # # """Run SabreVS."""
+        # routing_method = ParallelSabreSwapVS(
+        #     coupling_map=self.coupling, trials=SWAP_TRIALS
+        # )
+        routing_method = SabreSwapVS(coupling_map=self.coupling)
         layout_method = SabreLayout(
             coupling_map=self.coupling,
             routing_pass=routing_method,

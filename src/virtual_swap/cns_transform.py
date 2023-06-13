@@ -7,6 +7,7 @@ from qiskit.circuit import Instruction
 from qiskit.circuit.library import SwapGate, iSwapGate
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.quantum_info import Operator, random_unitary
+from slam.utils.transpiler_pass.weyl_decompose import SiSwapGate
 from weylchamber import c1c2c3
 
 # Global CNS Transformations
@@ -15,7 +16,9 @@ cx_replace = QuantumCircuit(2, 0, name="iswap_prime")
 cx_replace.h(1)
 cx_replace.rz(-np.pi / 2, 0)
 cx_replace.rz(-np.pi / 2, 1)
-cx_replace.iswap(0, 1)
+# cx_replace.iswap(0, 1)
+cx_replace.append(SiSwapGate(), [0, 1])
+cx_replace.append(SiSwapGate(), [0, 1])
 cx_replace.h(0)
 
 # iswap -> cx
@@ -54,6 +57,14 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
 
         # FIXME, this is a hack, used to make sure after more consolidate+unrolls the propety is preserved
         # these are dummy circuits, used just because I know the cost works out to be the same
+
+        # edge case
+        if depth == 0:
+            temp_circuit = QuantumCircuit(2)
+            temp_circuit.u(np.pi, np.pi, np.pi, 0)
+            temp_circuit.u(np.pi, np.pi, np.pi, 1)
+            return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
+
         while True:
             try:
                 random_op = random_unitary(dims=4)
