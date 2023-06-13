@@ -1,13 +1,12 @@
 """CNS Transformations for Virtual Swap."""
-import warnings
 
 import numpy as np
 from monodromy.depthPass import MonodromyDepth
 from qiskit import QuantumCircuit
 from qiskit.circuit import Instruction
 from qiskit.circuit.library import SwapGate, iSwapGate
-from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
+from qiskit.quantum_info import Operator, random_unitary
 from weylchamber import c1c2c3
 
 # Global CNS Transformations
@@ -44,22 +43,26 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
 
     else:
         # can write a generic sub, but without solutions for 1Q gates
-        warnings.warn(f"Unsupported operation, {node.name}, Use generic monodromy sub")
+        # warnings.warn(f"Unsupported operation, {node.name}, Use generic monodromy sub")
         # make a temp circuit
         temp_circuit = QuantumCircuit(2)
-        temp_circuit.append(node.op, node.qargs)
+        temp_circuit.append(node.op, [0, 1])  # node.qargs)
         temp_circuit.swap(0, 1)
         # get the depth w.r.t sqiswap basis gate
-        temp_dag = circuit_to_dag(temp_circuit)
-        depth_calc.run(temp_dag)
-        depth = depth_calc.property_set["monodromy_depth"]
+        depth = depth_calc._operation_to_cost(Operator(temp_circuit))
         # create a new DAGOpNode using sqiswap basis gate applied #depth times
-        temp_circuit = QuantumCircuit(2)
-        for _ in range(depth):
-            temp_circuit.append(iswap_replace.to_instruction(), node.qargs)
-            # place some garbage 1Q gates
-            temp_circuit.h(0)
-            temp_circuit.h(1)
+
+        # FIXME, this is a hack, used to make sure after more consolidate+unrolls the propety is preserved
+        # these are dummy circuits, used just because I know the cost works out to be the same
+        while True:
+            try:
+                random_op = random_unitary(dims=4)
+                temp_circuit = QuantumCircuit(2)
+                temp_circuit.append(random_op, [0, 1])  # node.qargs)
+                assert depth == depth_calc._operation_to_cost(Operator(temp_circuit))
+                break
+            except AssertionError:
+                continue
         return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
 
     # else:

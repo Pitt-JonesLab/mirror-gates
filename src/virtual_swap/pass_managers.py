@@ -4,7 +4,9 @@
 # from qiskit.transpiler.passmanager import PassManager
 from abc import ABC, abstractmethod
 
-from qiskit.transpiler.basepasses import AnalysisPass
+import numpy as np
+from qiskit.converters import circuit_to_dag, dag_to_circuit
+from qiskit.transpiler.basepasses import AnalysisPass, TransformationPass
 from qiskit.transpiler.passes import (
     ApplyLayout,
     Collect2qBlocks,
@@ -24,7 +26,7 @@ from slam.utils.transpiler_pass.weyl_decompose import RootiSwapWeylDecomposition
 # I can't use this version bc qiskit version missing DAGCircuit functionality
 from transpile_benchy.runner import AbstractRunner
 
-from virtual_swap.cns_sabre_v2 import CNS_SabreSwap_V2
+from virtual_swap.cns_sabre_v3 import ParallelSabreSwapVS
 
 # from virtual_swap.deprecated.cns_brute import CNS_Brute
 # from virtual_swap.deprecated.sabre_swap import SabreSwap
@@ -54,6 +56,19 @@ class SaveCircuitProgress(AnalysisPass):
         return dag
 
 
+class AssignAllParameters(TransformationPass):
+    def __init__(self):
+        super().__init__()
+
+    def run(self, dag):
+        # for every parameter, assign a random value [0, 2pi]
+        # not sure I good way to do this, do messy in meantime
+        qc = dag_to_circuit(dag)
+        for param in qc.parameters:
+            qc.assign_parameters({param: np.random.uniform(0, 2 * np.pi)}, inplace=True)
+        return circuit_to_dag(qc)
+
+
 class LayoutRouteSqiswap(AbstractRunner, ABC):
     """Subclass for AbstractRunner implementing pre- and post-processing."""
 
@@ -69,6 +84,7 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
     def pre_process(self):
         """Pre-process the circuit before running."""
         self.pm.append(RemoveIGates())
+        self.pm.append(AssignAllParameters())
         self.pm.append(Unroller(["u", "u3", "cx", "iswap", "swap"]))
         self.pm.append(OptimizeSwapBeforeMeasure())
         self.pm.append(RemoveResetInZeroState())
@@ -134,9 +150,10 @@ class SabreVS(LayoutRouteSqiswap):
 
     def main_process(self):
         """Run SabreVS."""
-        routing_method = CNS_SabreSwap_V2(
+        routing_method = ParallelSabreSwapVS(
             coupling_map=self.coupling, trials=SWAP_TRIALS
         )
+        # routing_method = SabreSwapVS(coupling_map=self.coupling)
         layout_method = SabreLayout(
             coupling_map=self.coupling,
             routing_pass=routing_method,
@@ -156,9 +173,9 @@ class SabreVS(LayoutRouteSqiswap):
         try:
             return super().run(circuit)
         finally:
-            if self.logger is not None:
+            if self.logger is not None and self.pm.property_set:
                 self.logger.info(
-                    f"Accepted CNS subs: {self.pm.property_set['accept_subs']}"
+                    f"Accepted CNS subs: {self.pm.property_set['accepted_subs']}"
                 )
 
 

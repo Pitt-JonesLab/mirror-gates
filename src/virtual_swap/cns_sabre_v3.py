@@ -25,12 +25,18 @@ this lets us unit test the CNS subs without worrying about data movement changes
 - handle all processing at the end, means can use cns_transform instead of _get_node_cns
 """
 
+import multiprocessing as mp
+
 import numpy as np
+from monodromy.depthPass import MonodromyDepth
+from qiskit.circuit.gate import Gate
 from qiskit.circuit.library import SwapGate
-from qiskit.dagcircuit import DAGOpNode
+from qiskit.circuit.library.standard_gates import iSwapGate
+from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler import TranspilerError
+from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.layout import Layout
-from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks
+from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks, Unroller
 
 from virtual_swap.cns_transform import _get_node_cns
 
@@ -47,7 +53,44 @@ DECAY_RATE = 0.001  # Decay coefficient for penalizing serial swaps.
 DECAY_RESET_INTERVAL = 5  # How often to reset all decay rates to 1.
 
 
-class SabreVS(LegacySabreSwap):
+class ParallelSabreSwapVS(TransformationPass):
+    def __init__(self, coupling_map, heuristic="lookahead", trials=6):
+        super().__init__()
+        self.requires = [Collect2qBlocks(), ConsolidateBlocks(force_consolidate=True)]
+        self.coupling_map = coupling_map
+        self.heuristic = heuristic
+        self.num_trials = trials
+
+    def run_single_trial(self, seed):
+        trial = SabreSwapVS(self.coupling_map, self.heuristic)
+        trial.seed = seed  # Set the seed for this trial
+        trial.property_set = self.property_set  # Copy the property set from the parent
+        result = trial.run(self.dag)  # Assuming the DAG is stored in self
+        score = self.calculate_score(result)  # You need to implement this
+        return score, result, trial.property_set
+
+    def run(self, dag: DAGCircuit) -> DAGCircuit:
+        self.dag = (
+            dag  # Store the dag in self so it can be accessed by run_single_trial
+        )
+        with mp.Pool() as pool:
+            results = pool.map(self.run_single_trial, range(self.num_trials))
+        best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
+        self.property_set["final_layout"] = best_property_set["final_layout"]
+        self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
+        return best_result
+
+    # Implement this according to your scoring needs
+    def calculate_score(self, result: DAGCircuit):
+        unroller = Unroller(["cx", "u", "swap", "iswap"])
+        temp_dag = unroller.run(result)
+        depth_pass = MonodromyDepth(basis_gate=iSwapGate().power(1 / 2))
+        depth_pass.property_set = unroller.property_set
+        temp_dag = depth_pass.run(temp_dag)
+        return depth_pass.property_set["monodromy_depth"]
+
+
+class SabreSwapVS(LegacySabreSwap):
     def __init__(self, coupling_map, heuristic="lookahead"):
         super().__init__(coupling_map, heuristic=heuristic)
         # want to force only 2Q gates visible to the algorithm,
@@ -94,7 +137,7 @@ class SabreVS(LegacySabreSwap):
 
         self.rng = np.random.default_rng(self.seed)
 
-    def _handle_no_progress(self):
+    def _handle_no_progress(self, dag):
         """Handle the case where no progress has been made in the last
         max_iterations_without_progress iterations."""
         # XXX, this methods are relying on updating variables via pass by reference
@@ -144,7 +187,7 @@ class SabreVS(LegacySabreSwap):
         # If no gates can be executed, add greedy swaps
         if (
             not execute_gate_list
-            and len(self.ops_since_progress) > self._max_iterations_without_progress
+            and len(self._ops_since_progress) > self._max_iterations_without_progress
         ):
             self._handle_no_progress(dag)
             return 1
@@ -165,8 +208,8 @@ class SabreVS(LegacySabreSwap):
                 if node.qargs:
                     self._reset_qubits_decay()
 
-                self.ops_since_progress = []
-                self._extended_set = None
+            self._ops_since_progress = []
+            self._extended_set = None
 
             # NOTE, I think this may be redundant, since forcing a stall
             # issue a return that triggers a continue in the main loop
@@ -196,6 +239,13 @@ class SabreVS(LegacySabreSwap):
 
         trial_layout = self._current_layout.copy()
         for node in self._intermediate_layer:
+            # handles barriers, measure, reset, etc.
+            if not isinstance(node.op, Gate):
+                self._apply_gate(
+                    self._mapped_dag, node, trial_layout, self._canonical_register
+                )
+                continue
+
             # use lookahead because these swaps are virtual - they have no cost related to parallelism
             no_sub_score = self._score_heuristic(
                 "lookahead", self._front_layer, extended_set, trial_layout
@@ -291,7 +341,7 @@ class SabreVS(LegacySabreSwap):
                     self._current_layout,
                     self._canonical_register,
                 )
-            self._intermediate_layer.remove(node)
+            self._intermediate_layer = []
 
         # assert front layer and intermediate layer are empty'
         assert not self._front_layer and not self._intermediate_layer
