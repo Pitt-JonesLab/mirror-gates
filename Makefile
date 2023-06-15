@@ -28,6 +28,11 @@ clean:
 	@rm -rf src/__pycache__
 	@rm -rf src/*.egg-info
 
+movefigs:
+	@find ./src/ -type f -name '*.png' -exec mv {} ./images/ \; 2>/dev/null || true
+	@find ./src/ -type f -name '*.svg' -exec mv {} ./images/ \; 2>/dev/null || true
+
+
 test:
 	@$(PIP) install -e .[test] --quiet
 	$(PYTEST) src/tests
