@@ -6,9 +6,14 @@ PRE_COMMIT = .venv/bin/pre-commit
 init:
 	$(PYTHON_VERSION) -m venv .venv
 	@$(PIP) install --upgrade pip
-	$(PIP) install -e .[dev]
+	$(PIP) install -e .[dev] --ignore-installed
 	@$(PRE_COMMIT) install
 	@$(PRE_COMMIT) autoupdate
+	transpile_benchy
+
+transpile_benchy:
+	git clone https://github.com/evmckinney9/transpile_benchy.git --recurse-submodules
+	cd transpile_benchy && $(PIP) install -e . --ignore-installed
 
 clean:
 	@find ./ -type f -name '*.pyc' -exec rm -f {} \; 2>/dev/null || true
@@ -47,4 +52,4 @@ precommit:
 	@$(PIP) install -e .[format] --quiet
 	$(PRE_COMMIT) run --all-files
 
-.PHONY: init clean test precommit format
+.PHONY: init clean test precommit format transpile_benchy
