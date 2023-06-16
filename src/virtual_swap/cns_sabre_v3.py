@@ -36,7 +36,7 @@ from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler import TranspilerError
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.layout import Layout
-from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks
+from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks, Unroller
 
 from virtual_swap.cns_transform import _get_node_cns
 
@@ -54,12 +54,27 @@ DECAY_RESET_INTERVAL = 5  # How often to reset all decay rates to 1.
 
 
 class ParallelSabreSwapVS(TransformationPass):
-    def __init__(self, coupling_map, heuristic="lookahead", trials=6):
+    def __init__(
+        self,
+        coupling_map,
+        heuristic="lookahead",
+        trials=6,
+        basis_gate=None,
+        parallel=True,
+    ):
         super().__init__()
         self.requires = [Collect2qBlocks(), ConsolidateBlocks(force_consolidate=True)]
         self.coupling_map = coupling_map
         self.heuristic = heuristic
         self.num_trials = trials
+        self.basis_gate = basis_gate or iSwapGate().power(1 / 2)
+        self.parallel = parallel
+
+    def run(self, dag: DAGCircuit) -> DAGCircuit:
+        if self.parallel:
+            return self._parallel_run(dag)
+        else:
+            return self._serial_run(dag)
 
     def run_single_trial(self, seed):
         trial = SabreSwapVS(self.coupling_map, self.heuristic)
@@ -69,7 +84,7 @@ class ParallelSabreSwapVS(TransformationPass):
         score = self.calculate_score(result)  # You need to implement this
         return score, result, trial.property_set
 
-    def run(self, dag: DAGCircuit) -> DAGCircuit:
+    def _parallel_run(self, dag: DAGCircuit) -> DAGCircuit:
         self.dag = (
             dag  # Store the dag in self so it can be accessed by run_single_trial
         )
@@ -80,21 +95,23 @@ class ParallelSabreSwapVS(TransformationPass):
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
         return best_result
 
-    # def run(self, dag: DAGCircuit) -> DAGCircuit:
-    #     self.dag = dag  # Store the dag in self so it can be accessed by run_single_trial
-    #     results = [self.run_single_trial(i) for i in range(self.num_trials)]
-    #     best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
-    #     self.property_set["final_layout"] = best_property_set["final_layout"]
-    #     self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
-    #     return best_result
+    def _serial_run(self, dag: DAGCircuit) -> DAGCircuit:
+        self.dag = (
+            dag  # Store the dag in self so it can be accessed by run_single_trial
+        )
+        results = [self.run_single_trial(i) for i in range(self.num_trials)]
+        best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
+        self.property_set["final_layout"] = best_property_set["final_layout"]
+        self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
+        return best_result
 
     def calculate_score(self, result: DAGCircuit):
         # XXX is this unroll still necessary before the consolidation?
-        # unroller = Unroller(["cx", "u", "swap", "iswap"])
-        # temp_dag = unroller.run(result)
-        depth_pass = MonodromyDepth(basis_gate=iSwapGate().power(1 / 2))
-        # depth_pass.property_set = unroller.property_set
-        depth_pass.run(result)
+        unroller = Unroller(["cx", "u", "swap", "iswap"])
+        temp_dag = unroller.run(result)
+        depth_pass = MonodromyDepth(basis_gate=self.basis_gate)
+        depth_pass.property_set = unroller.property_set
+        depth_pass.run(temp_dag)
         return depth_pass.property_set["monodromy_depth"]
 
 
@@ -256,14 +273,14 @@ class SabreSwapVS(LegacySabreSwap):
 
             # use lookahead because these swaps are virtual - they have no cost related to parallelism
             no_sub_score = self._score_heuristic(
-                "lookahead", self._front_layer, extended_set, trial_layout
+                "basic", self._front_layer, extended_set, trial_layout
             )
 
             # compare against the sub
             node_prime = _get_node_cns(node)
             trial_layout.swap(*node_prime.qargs)
             sub_score = self._score_heuristic(
-                "lookahead", self._front_layer, extended_set, trial_layout
+                "basic", self._front_layer, extended_set, trial_layout
             )
 
             if sub_score < no_sub_score:

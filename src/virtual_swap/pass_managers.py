@@ -6,14 +6,17 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from monodromy.depthPass import MonodromyDepth
-from qiskit.circuit.library import iSwapGate
+from qiskit.circuit.library import CXGate, iSwapGate
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.transpiler.basepasses import AnalysisPass, TransformationPass
 from qiskit.transpiler.passes import (
     ApplyLayout,
+    Collect2qBlocks,
     CommutativeCancellation,
+    ConsolidateBlocks,
     EnlargeWithAncilla,
     FullAncillaAllocation,
+    Optimize1qGates,
     OptimizeSwapBeforeMeasure,
     RemoveBarriers,
     RemoveDiagonalGatesBeforeMeasure,
@@ -26,7 +29,7 @@ from qiskit.transpiler.passes import (
 # I can't use this version bc qiskit version missing DAGCircuit functionality
 from transpile_benchy.runner import AbstractRunner
 
-from virtual_swap.cns_sabre_v3 import SabreSwapVS
+from virtual_swap.cns_sabre_v3 import ParallelSabreSwapVS, SabreSwapVS
 
 # from virtual_swap.deprecated.cns_brute import CNS_Brute
 # from virtual_swap.deprecated.sabre_swap import SabreSwap
@@ -36,7 +39,7 @@ from virtual_swap.sabre_layout import SabreLayout
 from virtual_swap.sqiswap_equiv import RemoveIGates
 
 LAYOUT_TRIALS = 6  # (physical CPU_COUNT)
-SWAP_TRIALS = 6  # 6  # makes it so much slower :(
+SWAP_TRIALS = 3  # 6  # makes it so much slower :(
 
 
 class SaveCircuitProgress(AnalysisPass):
@@ -72,11 +75,11 @@ class AssignAllParameters(TransformationPass):
 class LayoutRouteSqiswap(AbstractRunner, ABC):
     """Subclass for AbstractRunner implementing pre- and post-processing."""
 
-    def __init__(self, coupling, logger=None):
+    def __init__(self, coupling, logger=None, name=None):
         """Initialize the runner."""
         self.coupling = coupling
         self.logger = logger
-        super().__init__()
+        super().__init__(name)
 
     # NOTE, these u and u3s is somewhat of a monkey fix :P
     # I don't know why but Optimize1qGates was breaking
@@ -94,22 +97,28 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
 
     def post_process(self):
         """Post-process the circuit after running."""
-        pass
+        # if self.cx_basis or True:
+        #     self.pm.append(Unroller(["u", "cx", "swap"]))
+        # else:
+        #     self.pm.append(Unroller(["u", "cx", "iswap", "swap"]))
+        self.pm.append(Unroller(["u", "cx", "iswap", "swap"]))
+        self.pm.append(CommutativeCancellation())
+
         self.pm.append(
             [
                 # adding this unroller fixes issue
                 # consolidate block was not pushing together
                 # the iswap_primes and 2Q blocks
-                # Unroller(["u", "cx", "iswap", "swap"]),
                 RemoveResetInZeroState(),
                 OptimizeSwapBeforeMeasure(),
                 RemoveDiagonalGatesBeforeMeasure(),
                 # this 1Q optimize is unnecessary, keeping it for cleaner mid circuits
-                # Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
+                Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
                 # debug, save current circuit to property_set
                 SaveCircuitProgress(),
-                # Collect2qBlocks(),
-                # ConsolidateBlocks(force_consolidate=True),
+                # XXXX
+                Collect2qBlocks(),
+                ConsolidateBlocks(force_consolidate=True),
             ]
         )
         # if not self.cx_basis:
@@ -126,8 +135,12 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
         # does not help for sqiswap, but maybe I need to add
         # something inside of this function?
         # not sure that any rules would apply
-        self.pm.append(CommutativeCancellation())
-        self.pm.append(MonodromyDepth(basis_gate=iSwapGate().power(1 / 2)))
+        self.pm.append(MonodromyDepth(basis_gate=self.basis_gate))
+
+        # # if self.cx_basis:
+        # #     self.pm.append(Unroller(["u", "cx", "swap"]))
+        # # else:
+        # #     self.pm.append(Unroller(["u", "cx", "iswap", "swap"]))
 
     @abstractmethod
     def main_process(self):
@@ -147,15 +160,26 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
 class SabreVS(LayoutRouteSqiswap):
     """Sabre CNS V2 pass manager."""
 
-    def __init__(self, coupling, cx_basis=False, logger=None):
+    def __init__(self, coupling, parallel=True, cx_basis=False, logger=None):
+        self.parallel = parallel
         self.cx_basis = cx_basis
-        super().__init__(coupling, logger)
+        if self.cx_basis:
+            self.basis_gate = CXGate()
+            name = "SABREVS-CX"
+        else:
+            self.basis_gate = iSwapGate().power(1 / 2)
+            name = "SABREVS-sqrtiSWAP"
+        super().__init__(coupling, logger, name=name)
 
     def main_process(self):
         # # """Run SabreVS."""
-        # routing_method = ParallelSabreSwapVS(
-        #     coupling_map=self.coupling, trials=SWAP_TRIALS
-        # )
+        routing_method = ParallelSabreSwapVS(
+            coupling_map=self.coupling,
+            trials=SWAP_TRIALS,
+            basis_gate=self.basis_gate,
+            parallel=self.parallel,
+        )
+        # single-shot
         routing_method = SabreSwapVS(coupling_map=self.coupling)
         layout_method = SabreLayout(
             coupling_map=self.coupling,
@@ -187,7 +211,13 @@ class SabreQiskit(LayoutRouteSqiswap):
 
     def __init__(self, coupling, cx_basis=False):
         self.cx_basis = cx_basis
-        super().__init__(coupling)
+        if self.cx_basis:
+            self.basis_gate = CXGate()
+            name = "Qiskit-CX"
+        else:
+            self.basis_gate = iSwapGate().power(1 / 2)
+            name = "Qiskit-sqrtiSWAP"
+        super().__init__(coupling, name=name)
 
     def main_process(self):
         """Run SabreQiskit."""

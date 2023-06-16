@@ -6,7 +6,6 @@ from qiskit import QuantumCircuit
 from qiskit.circuit import Instruction
 from qiskit.circuit.library import SwapGate, iSwapGate
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
-from qiskit.quantum_info import Operator, random_unitary
 from weylchamber import c1c2c3
 
 # Global CNS Transformations
@@ -51,28 +50,28 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
         temp_circuit.append(node.op, [0, 1])  # node.qargs)
         temp_circuit.swap(0, 1)
         # get the depth w.r.t sqiswap basis gate
-        depth = depth_calc._operation_to_cost(Operator(temp_circuit))
+        # depth = depth_calc._operation_to_cost(Operator(temp_circuit))
         # create a new DAGOpNode using sqiswap basis gate applied #depth times
 
         # FIXME, this is a hack, used to make sure after more consolidate+unrolls the propety is preserved
         # these are dummy circuits, used just because I know the cost works out to be the same
 
-        # edge case
-        if depth == 0:
-            temp_circuit = QuantumCircuit(2)
-            temp_circuit.u(np.pi, np.pi, np.pi, 0)
-            temp_circuit.u(np.pi, np.pi, np.pi, 1)
-            return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
+        # # edge case
+        # if depth == 0:
+        #     temp_circuit = QuantumCircuit(2)
+        #     temp_circuit.u(np.pi, np.pi, np.pi, 0)
+        #     temp_circuit.u(np.pi, np.pi, np.pi, 1)
+        #     return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
 
-        while True:
-            try:
-                random_op = random_unitary(dims=4)
-                temp_circuit = QuantumCircuit(2)
-                temp_circuit.append(random_op, [0, 1])  # node.qargs)
-                assert depth == depth_calc._operation_to_cost(Operator(temp_circuit))
-                break
-            except AssertionError:
-                continue
+        # while True:
+        #     try:
+        #         random_op = random_unitary(dims=4)
+        #         temp_circuit = QuantumCircuit(2)
+        #         temp_circuit.append(random_op, [0, 1])  # node.qargs)
+        #         assert depth == depth_calc._operation_to_cost(Operator(temp_circuit))
+        #         break
+        #     except AssertionError:
+        #         continue
         return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
 
     # else:
