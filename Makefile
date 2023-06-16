@@ -3,17 +3,24 @@ PIP = .venv/bin/pip
 PYTEST = .venv/bin/pytest
 PRE_COMMIT = .venv/bin/pre-commit
 
+.PHONY: init clean test precommit format transpile_benchy
+
 init:
+	rm -rf .venv
 	$(PYTHON_VERSION) -m venv .venv
 	@$(PIP) install --upgrade pip
 	$(PIP) install -e .[dev] --ignore-installed
 	@$(PRE_COMMIT) install
 	@$(PRE_COMMIT) autoupdate
-	transpile_benchy
 
-transpile_benchy:
-	git clone https://github.com/evmckinney9/transpile_benchy.git --recurse-submodules
-	cd transpile_benchy && $(PIP) install -e . --ignore-installed
+	if [ -d "../transpile_benchy" ]; then \
+		echo "Repository already exists. Updating with latest changes."; \
+		cd ../transpile_benchy && git pull; \
+	else \
+		cd .. && git clone https://github.com/evmckinney9/transpile_benchy.git --recurse-submodules; \
+		cd transpile_benchy; \
+	fi
+	$(PIP) install -e ../transpile_benchy --ignore-installed
 
 clean:
 	@find ./ -type f -name '*.pyc' -exec rm -f {} \; 2>/dev/null || true
@@ -37,7 +44,6 @@ movefigs:
 	@find ./src/ -type f -name '*.png' -exec mv {} ./images/ \; 2>/dev/null || true
 	@find ./src/ -type f -name '*.svg' -exec mv {} ./images/ \; 2>/dev/null || true
 
-
 test:
 	@$(PIP) install -e .[test] --quiet
 	$(PYTEST) src/tests
@@ -46,10 +52,4 @@ format:
 	@$(PIP) install -e .[format] --quiet
 	$(PRE_COMMIT) run --all-files
 
-precommit:
-	@$(PIP) install -e .[test] --quiet
-	$(PYTEST) src/tests
-	@$(PIP) install -e .[format] --quiet
-	$(PRE_COMMIT) run --all-files
-
-.PHONY: init clean test precommit format transpile_benchy
+precommit: test format
