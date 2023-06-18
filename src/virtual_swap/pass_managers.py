@@ -39,7 +39,7 @@ from virtual_swap.sabre_layout import SabreLayout
 from virtual_swap.sqiswap_equiv import RemoveIGates
 
 LAYOUT_TRIALS = 6  # (physical CPU_COUNT)
-SWAP_TRIALS = 3  # 6  # makes it so much slower :(
+SWAP_TRIALS = 6  # 6  # makes it so much slower :(
 
 
 class SaveCircuitProgress(AnalysisPass):
@@ -165,10 +165,10 @@ class SabreVS(LayoutRouteSqiswap):
         self.cx_basis = cx_basis
         if self.cx_basis:
             self.basis_gate = CXGate()
-            name = "SABREVS-CX"
+            name = r"SABREVS-$\texttt{CNOT}$"
         else:
             self.basis_gate = iSwapGate().power(1 / 2)
-            name = "SABREVS-sqrtiSWAP"
+            name = r"SABREVS-$\sqrt{\texttt{iSWAP}}$"
         super().__init__(coupling, logger, name=name)
 
     def main_process(self):
@@ -213,10 +213,10 @@ class SabreQiskit(LayoutRouteSqiswap):
         self.cx_basis = cx_basis
         if self.cx_basis:
             self.basis_gate = CXGate()
-            name = "Qiskit-CX"
+            name = r"Qiskit-$\texttt{CNOT}$"
         else:
             self.basis_gate = iSwapGate().power(1 / 2)
-            name = "Qiskit-sqrtiSWAP"
+            name = r"Qiskit-$\sqrt{\texttt{iSWAP}}$"
         super().__init__(coupling, name=name)
 
     def main_process(self):
