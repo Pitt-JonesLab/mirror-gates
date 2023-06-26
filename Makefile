@@ -9,7 +9,7 @@ init:
 	rm -rf .venv
 	$(PYTHON_VERSION) -m venv .venv
 	@$(PIP) install --upgrade pip
-	$(PIP) install -e .[dev] --ignore-installed
+	$(PIP) install -e .[dev] --quiet
 	@$(PRE_COMMIT) install
 	@$(PRE_COMMIT) autoupdate
 
@@ -20,7 +20,7 @@ init:
 		cd .. && git clone https://github.com/evmckinney9/transpile_benchy.git --recurse-submodules; \
 		cd transpile_benchy; \
 	fi
-	$(PIP) install -e ../transpile_benchy --ignore-installed
+	$(PIP) install -e ../transpile_benchy --quiet
 
 clean:
 	@find ./ -type f -name '*.pyc' -exec rm -f {} \; 2>/dev/null || true

@@ -135,7 +135,10 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
         # does not help for sqiswap, but maybe I need to add
         # something inside of this function?
         # not sure that any rules would apply
-        self.pm.append(MonodromyDepth(basis_gate=self.basis_gate))
+
+        # hardcode sqiswap/cx relative scaling
+        s = 1 if self.cx_basis else 0.5
+        self.pm.append(MonodromyDepth(basis_gate=self.basis_gate, scale=s))
 
         # # if self.cx_basis:
         # #     self.pm.append(Unroller(["u", "cx", "swap"]))
@@ -149,7 +152,7 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
 
     def run(self, circuit):
         """Run the transpiler on the circuit."""
-        # return self.pm.run(circuit)
+        return self.pm.run(circuit)
         try:
             return super().run(circuit)
         except Exception as e:

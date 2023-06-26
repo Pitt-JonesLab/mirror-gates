@@ -159,6 +159,7 @@ class SabreSwapVS(LegacySabreSwap):
         self._front_layer = dag.front_layer()
         self._intermediate_layer = []
         self._total_subs = 0
+        self._considered_subs = 0
 
         self.rng = np.random.default_rng(self.seed)
 
@@ -167,6 +168,7 @@ class SabreSwapVS(LegacySabreSwap):
         max_iterations_without_progress iterations."""
         # XXX, this methods are relying on updating variables via pass by reference
         # does this work for class variables?
+        raise NotImplementedError("Unresovled bug in handle_no_progress function")
         self._undo_operations(
             self._ops_since_progress, self._mapped_dag, self._current_layout
         )
@@ -282,6 +284,7 @@ class SabreSwapVS(LegacySabreSwap):
             sub_score = self._score_heuristic(
                 "basic", self._front_layer, extended_set, trial_layout
             )
+            self._considered_subs += 1
 
             if sub_score < no_sub_score:
                 self._total_subs += 1
@@ -373,5 +376,10 @@ class SabreSwapVS(LegacySabreSwap):
 
         # Set final layout and return the mapped dag
         self.property_set["final_layout"] = self._current_layout
-        self.property_set["accepted_subs"] = self._total_subs
+
+        # write accepted_subs as fraction of total number of 2Q gates considered
+        self.property_set["accepted_subs"] = (
+            1.0 * self._total_subs / self._considered_subs
+        )
+
         return self._mapped_dag
