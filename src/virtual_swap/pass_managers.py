@@ -6,8 +6,10 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from monodromy.depthPass import MonodromyDepth
+from qiskit import transpile
 from qiskit.circuit.library import CXGate, iSwapGate
 from qiskit.converters import circuit_to_dag, dag_to_circuit
+from qiskit.transpiler import PassManager
 from qiskit.transpiler.basepasses import AnalysisPass, TransformationPass
 from qiskit.transpiler.passes import (
     ApplyLayout,
@@ -76,10 +78,13 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
     """Subclass for AbstractRunner implementing pre- and post-processing."""
 
     def __init__(self, coupling, logger=None, name=None):
-        """Initialize the runner."""
         self.coupling = coupling
         self.logger = logger
-        super().__init__(name)
+        self.name = name or self.__class__.__name__
+        self.pm = PassManager()
+        self.pre_process()
+        self.main_process()
+        # self.post_process()
 
     # NOTE, these u and u3s is somewhat of a monkey fix :P
     # I don't know why but Optimize1qGates was breaking
@@ -152,7 +157,22 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
 
     def run(self, circuit):
         """Run the transpiler on the circuit."""
-        return self.pm.run(circuit)
+        transp = self.pm.run(circuit)
+        # run qiskit for random optimizations
+        transp = transpile(
+            transp,
+            coupling_map=self.coupling,
+            optimization_level=3,
+            basis_gates=self.basis_gates,
+            initial_layout=self.pm.property_set["post_layout"],
+        )
+        # finalize with post processing
+        pre_property_set = self.pm.property_set
+        self.pm = PassManager()
+        self.post_process()
+        transp = self.pm.run(transp)
+        self.pm.property_set.update(pre_property_set)
+        return transp
         try:
             return super().run(circuit)
         except Exception as e:
@@ -169,9 +189,12 @@ class SabreVS(LayoutRouteSqiswap):
         if self.cx_basis:
             self.basis_gate = CXGate()
             name = r"SABREVS-$\texttt{CNOT}$"
+            self.basis_gates = ["u", "cx"]
         else:
             self.basis_gate = iSwapGate().power(1 / 2)
             name = r"SABREVS-$\sqrt{\texttt{iSWAP}}$"
+            self.basis_gates = ["u", "xx_plus_yy"]
+
         super().__init__(coupling, logger, name=name)
 
     def main_process(self):
@@ -222,6 +245,15 @@ class SabreQiskit(LayoutRouteSqiswap):
             name = r"Qiskit-$\sqrt{\texttt{iSWAP}}$"
         super().__init__(coupling, name=name)
 
+    def pre_process(self):
+        # temporarily ugly fix to silence warnings
+        class TempNoSubs(AnalysisPass):
+            def run(self, dag):
+                self.property_set["accepted_subs"] = 0
+                return dag
+
+        self.pm.append(TempNoSubs())
+
     def main_process(self):
         """Run SabreQiskit."""
         # override trials,
@@ -247,12 +279,6 @@ class SabreQiskit(LayoutRouteSqiswap):
 class QiskitTranspileRunner(LayoutRouteSqiswap):
     """Used to noop the pre-, main-, post- passes."""
 
-    def pre_process(self):
-        pass
-
-    def main_process(self):
-        pass
-
     @abstractmethod
     def run(self):
         """Abstract method for overloaded run method."""
@@ -262,17 +288,47 @@ class QiskitTranspileRunner(LayoutRouteSqiswap):
 # same as SabreQiskit, but need to test if level=3 has additional optimizations
 # SabreQiskit is just Layout/Routing, doesn't look for whatever other cancellations
 # that might be in level=3
-# class QiskitLevel3(QiskitTranspileRunner):
-#     def run(self, circuit):
-#         from qiskit.transpiler.passes.routing import SabreSwap
-#         # override trials,
-#         # this is because when we override the routing for CNS, it doesn't allow parallel trials
-#         # we set trials to 1 here in the qiskit baseline for normalization
-#         # however, each transpiler still runs best of N runs
-#         routing_method = SabreSwap(coupling_map= self.coupling, trials=1)
-#         layout_method = SabreLayout(coupling_map= self.coupling, layout_trials=1)
-#         transp = transpile(circuit, coupling_map=self.coupling, optimization_level=3, routing_method=routing_method, layout_method=layout_method)
-#         return self.pm.run(transp)
+class QiskitLevel3(QiskitTranspileRunner):
+    def __init__(self, coupling, cx_basis=False):
+        self.coupling = coupling
+        self.cx_basis = cx_basis
+        if self.cx_basis:
+            self.basis_gate = CXGate()
+            self.basis_gates = ["u", "cx"]
+            name = r"Qiskit-$\texttt{CNOT}$"
+        else:
+            self.basis_gate = iSwapGate().power(1 / 2)
+            from qiskit.circuit.library import XXPlusYYGate
+
+            self.basis_gate = XXPlusYYGate(theta=np.pi / 2)
+            self.basis_gates = ["u", "xx_plus_yy"]
+            name = r"Qiskit-$\sqrt{\texttt{iSWAP}}$"
+        super().__init__(coupling, name=name)
+
+    def main_process(self):
+        """Abstract method for main processing."""
+        pass
+
+    def run(self, circuit):
+        from qiskit import transpile
+        from qiskit.converters import circuit_to_dag
+
+        for param in circuit.parameters:
+            circuit.assign_parameters(
+                {param: np.random.uniform(0, 2 * np.pi)}, inplace=True
+            )
+        transp = transpile(
+            circuit,
+            coupling_map=self.coupling,
+            basis_gates=self.basis_gates,
+            optimization_level=3,
+        )
+        s = 1 if self.cx_basis else 0.5
+        depth = MonodromyDepth(basis_gate=self.basis_gate, scale=s)
+        depth.run(circuit_to_dag(transp))
+        self.pm.property_set = depth.property_set
+        self.pm.property_set["accepted_subs"] = 0
+        return transp
 
 
 # class BruteCNS(LayoutRouteSqiswap):
