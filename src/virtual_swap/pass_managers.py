@@ -34,8 +34,8 @@ from transpile_benchy.runner import AbstractRunner
 from virtual_swap.cns_sabre_v3 import ParallelSabreSwapVS, SabreSwapVS
 
 # from virtual_swap.deprecated.cns_brute import CNS_Brute
-# from virtual_swap.deprecated.sabre_swap import SabreSwap
-from virtual_swap.sabre_layout import SabreLayout
+# from virtual_swap.qiskit.sabre_swap import SabreSwap
+from virtual_swap.qiskit.sabre_layout import SabreLayout
 
 # from qiskit.transpiler.passes import SabreLayout
 from virtual_swap.sqiswap_equiv import RemoveIGates
@@ -45,14 +45,15 @@ SWAP_TRIALS = 6  # 6  # makes it so much slower :(
 
 
 class SaveCircuitProgress(AnalysisPass):
-    """Used to save the state of the circuit Mid-way through the transpiler,
-    for debugging."""
+    """Used to save circuit for debugging progress."""
 
     def __init__(self, qc_name=None):
+        """Initialize the pass."""
         super().__init__()
         self.qc_name = qc_name or "circuit_progress"
 
     def run(self, dag):
+        """Run the pass."""
         # convert dag to circuit,
         # save into property_set
         from qiskit.converters import dag_to_circuit
@@ -62,10 +63,14 @@ class SaveCircuitProgress(AnalysisPass):
 
 
 class AssignAllParameters(TransformationPass):
+    """Assigns all parameters to a random value."""
+
     def __init__(self):
+        """Initialize the pass."""
         super().__init__()
 
     def run(self, dag):
+        """Run the pass."""
         # for every parameter, assign a random value [0, 2pi]
         # not sure I good way to do this, do messy in meantime
         qc = dag_to_circuit(dag)
@@ -78,6 +83,7 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
     """Subclass for AbstractRunner implementing pre- and post-processing."""
 
     def __init__(self, coupling, logger=None, name=None):
+        """Initialize the pass manager."""
         self.coupling = coupling
         self.logger = logger
         self.name = name or self.__class__.__name__
@@ -191,6 +197,7 @@ class SabreVS(LayoutRouteSqiswap):
     """Sabre CNS V2 pass manager."""
 
     def __init__(self, coupling, parallel=True, cx_basis=False, logger=None):
+        """Initialize the pass manager."""
         self.parallel = parallel
         self.cx_basis = cx_basis
         if self.cx_basis:
@@ -205,6 +212,7 @@ class SabreVS(LayoutRouteSqiswap):
         super().__init__(coupling, logger, name=name)
 
     def main_process(self):
+        """Run SabreVS."""
         # # """Run SabreVS."""
         routing_method = ParallelSabreSwapVS(
             coupling_map=self.coupling,
@@ -243,6 +251,7 @@ class SabreQiskit(LayoutRouteSqiswap):
     """Sabre Qiskit pass manager."""
 
     def __init__(self, coupling, cx_basis=False):
+        """Initialize the pass manager."""
         self.cx_basis = cx_basis
         if self.cx_basis:
             self.basis_gate = CXGate()
@@ -253,8 +262,14 @@ class SabreQiskit(LayoutRouteSqiswap):
         super().__init__(coupling, name=name)
 
     def pre_process(self):
-        # temporarily ugly fix to silence warnings
+        """Pre-process the circuit before running."""
+
         class TempNoSubs(AnalysisPass):
+            """Used to save circuit for debugging progress.
+
+            Temporarily ugly fix to silence warnings
+            """
+
             def run(self, dag):
                 self.property_set["accepted_subs"] = 0
                 return dag
@@ -264,11 +279,11 @@ class SabreQiskit(LayoutRouteSqiswap):
     def main_process(self):
         """Run SabreQiskit."""
         # override trials,
-        # this is because when we override the routing for CNS, it doesn't allow parallel trials
+        # when we override the routing for CNS, it doesn't allow parallel trials
         # we set trials to 1 here in the qiskit baseline for normalization
         # however, each transpiler still runs best of N runs
         # routing_method = SabreSwap(coupling_map= self.coupling, trials=NUM_TRIALS)
-        # not specifying routing_pass, so it will use the default SabreSwap with trials=CPU_COUNT
+        # it will use the default SabreSwap with trials=CPU_COUNT
         layout_method = SabreLayout(
             coupling_map=self.coupling,
             layout_trials=LAYOUT_TRIALS,
@@ -278,7 +293,10 @@ class SabreQiskit(LayoutRouteSqiswap):
         # # NOTE, I think SabreLayout already does this
         # # NVM, only if routing_pass is None
         # self.pm.append(
-        #     [FullAncillaAllocation(self.coupling), EnlargeWithAncilla(), ApplyLayout()]
+        #     [FullAncillaAllocation(self.coupling),
+        #      EnlargeWithAncilla(),
+        #      ApplyLayout()
+        #      ]
         # )
         # self.pm.append(routing_method)
 
@@ -296,7 +314,10 @@ class QiskitTranspileRunner(LayoutRouteSqiswap):
 # SabreQiskit is just Layout/Routing, doesn't look for whatever other cancellations
 # that might be in level=3
 class QiskitLevel3(QiskitTranspileRunner):
+    """Qiskit level 3 pass manager."""
+
     def __init__(self, coupling, cx_basis=False):
+        """Initialize the pass manager."""
         self.coupling = coupling
         self.cx_basis = cx_basis
         if self.cx_basis:
@@ -317,6 +338,7 @@ class QiskitLevel3(QiskitTranspileRunner):
         pass
 
     def run(self, circuit):
+        """Run the transpiler on the circuit."""
         from qiskit import transpile
         from qiskit.converters import circuit_to_dag
 

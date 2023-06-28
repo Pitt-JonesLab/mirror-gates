@@ -1,28 +1,10 @@
 """V3 Rewrite of CNS SABRE Implementation.
 
-Goal is to remove the spaghetti code we created when modifying the original,
-more importantly, I believe I need to decouple the routing from the decomposition
-for the sake of unit testing. We should be able to keep the input and output qubits
-the same, and can verify the correctness of the CNS sub by comparing the output
-of this pass to the original circuit. Also, I hope to improve general readability
-and modularity.
-
-
-Design notes:
-- wait until end to process swaps on the return dag,
-this lets us unit test the CNS subs without worrying about data movement changes to the layout
-- eval local cost changes between intermediate layer -> front layer
-    - but can define a brute strat or sequential strat
-    - also could investigate look ahead
-- enforce a consolidate prereq, this means we have to use coordinates
-    - can assume circuit has no 1Q gates, makes much simpler
-    - fixes unreliable look up on iswap, cx gates
-    - future: a more advanced method should consider arbitrary basis
-    - easier to reason about costs, since already consolidated
-- use existing methods from parent class when possible
-- keep the run() simple and modular,
-- can use my own formatting and docuemntation style
-- handle all processing at the end, means can use cns_transform instead of _get_node_cns
+Goal is to remove the spaghetti code we created when modifying the original, more
+importantly, I believe I need to decouple the routing from the decomposition for the
+sake of unit testing. We should be able to keep the input and output qubits the same,
+and can verify the correctness of the CNS sub by comparing the output of this pass to
+the original circuit. Also, I hope to improve general readability and modularity.
 """
 
 import multiprocessing as mp
@@ -43,7 +25,7 @@ from virtual_swap.cns_transform import _get_node_cns
 # NOTE, the current qiskit version uses a rust backend
 # we have in deprecated/ the original python implementation we modified in V2.
 # might be useful to grab some functions from it
-from virtual_swap.deprecated.sabre_swap import SabreSwap as LegacySabreSwap
+from virtual_swap.qiskit.sabre_swap import SabreSwap as LegacySabreSwap
 
 EXTENDED_SET_SIZE = (
     20  # Size of lookahead window. TODO: set dynamically to len(current_layout)
@@ -54,6 +36,8 @@ DECAY_RESET_INTERVAL = 5  # How often to reset all decay rates to 1.
 
 
 class ParallelSabreSwapVS(TransformationPass):
+    """Parallel version of SabreSwapVS."""
+
     def __init__(
         self,
         coupling_map,
@@ -62,6 +46,7 @@ class ParallelSabreSwapVS(TransformationPass):
         basis_gate=None,
         parallel=True,
     ):
+        """Initialize the pass."""
         super().__init__()
         self.requires = [Collect2qBlocks(), ConsolidateBlocks(force_consolidate=True)]
         self.coupling_map = coupling_map
@@ -71,12 +56,14 @@ class ParallelSabreSwapVS(TransformationPass):
         self.parallel = parallel
 
     def run(self, dag: DAGCircuit) -> DAGCircuit:
+        """Run the pass on `dag`."""
         if self.parallel:
             return self._parallel_run(dag)
         else:
             return self._serial_run(dag)
 
     def run_single_trial(self, seed):
+        """Run a single trial of the pass."""
         trial = SabreSwapVS(self.coupling_map, self.heuristic)
         trial.seed = seed  # Set the seed for this trial
         trial.property_set = self.property_set  # Copy the property set from the parent
@@ -85,6 +72,7 @@ class ParallelSabreSwapVS(TransformationPass):
         return score, result, trial.property_set
 
     def _parallel_run(self, dag: DAGCircuit) -> DAGCircuit:
+        """Run the pass in parallel."""
         self.dag = (
             dag  # Store the dag in self so it can be accessed by run_single_trial
         )
@@ -96,6 +84,7 @@ class ParallelSabreSwapVS(TransformationPass):
         return best_result
 
     def _serial_run(self, dag: DAGCircuit) -> DAGCircuit:
+        """Run the pass in serial."""
         self.dag = (
             dag  # Store the dag in self so it can be accessed by run_single_trial
         )
@@ -105,7 +94,8 @@ class ParallelSabreSwapVS(TransformationPass):
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
         return best_result
 
-    def calculate_score(self, result: DAGCircuit):
+    def calculate_score(self, result: DAGCircuit) -> float:
+        """Calculate the score of a result."""
         # XXX is this unroll still necessary before the consolidation?
         unroller = Unroller(["cx", "u", "swap", "iswap"])
         temp_dag = unroller.run(result)
@@ -116,13 +106,17 @@ class ParallelSabreSwapVS(TransformationPass):
 
 
 class SabreSwapVS(LegacySabreSwap):
+    """V3 Rewrite of CNS SABRE Implementation."""
+
     def __init__(self, coupling_map, heuristic="lookahead"):
+        """Initialize the pass."""
         super().__init__(coupling_map, heuristic=heuristic)
         # want to force only 2Q gates visible to the algorithm,
         # makes much easier if don't have to deal with 1Q gates as successors
         self.requires = [Collect2qBlocks(), ConsolidateBlocks(force_consolidate=True)]
 
     def _initialize_variables(self, dag):
+        """Initialize variables for the algorithm."""
         if len(dag.qregs) != 1 or dag.qregs.get("q", None) is None:
             raise TranspilerError("Sabre swap runs on physical circuits only.")
 
@@ -164,8 +158,7 @@ class SabreSwapVS(LegacySabreSwap):
         self.rng = np.random.default_rng(self.seed)
 
     def _handle_no_progress(self, dag):
-        """Handle the case where no progress has been made in the last
-        max_iterations_without_progress iterations."""
+        """Handle the case where no progress is being made."""
         # XXX, this methods are relying on updating variables via pass by reference
         # does this work for class variables?
         raise NotImplementedError("Unresovled bug in handle_no_progress function")
@@ -182,12 +175,12 @@ class SabreSwapVS(LegacySabreSwap):
     def _process_front_layer(self, dag):
         """Process the front layer of the DAG.
 
-        Gates move from front layer into intermediate layer if a. has a
-        physical topology edge b. predeccessors have been resolved (i.e.
-        out of I layer), otherwise, gates remain in front layer.
+        Gates move from front layer into intermediate layer if a. has a physical
+        topology edge b. predeccessors have been resolved (i.e. out of I layer),
+        otherwise, gates remain in front layer.
 
-        Gates move into the front layer if all their predecessors have
-        left the front layer.
+        Gates move into the front layer if all their predecessors have left the front
+        layer.
         """
         # Remove as many immediately applicable gates as possible
         # First, move gates from front layer to execute_gate_list
@@ -245,6 +238,7 @@ class SabreSwapVS(LegacySabreSwap):
         return 0
 
     def _obtain_extended_set(self, dag, front_layer):
+        """Obtain the extended set of gates for the lookahead window."""
         # super() uses old convention
         self.required_predecessors = self._front_required_predecessors
         return super()._obtain_extended_set(dag, front_layer)
@@ -252,16 +246,15 @@ class SabreSwapVS(LegacySabreSwap):
     def _process_intermediate_layer(self, dag):
         """Consider a virtual-swap substitution on every gate.
 
-        If makes the topological distance cost from current layout to front layer better,
-        then accept the change. NOTE, some changes might make the cost of decomposition worse.
-        For example, CPhase with sqiswap basis changes from 2 to 3 gates. In this case, we decide
-        to still accept since reducing the SWAP cost is more important.
+        If makes the topological distance cost to front layer better, then accept the
+        change. NOTE, some changes might make decomposition cost worse. For example,
+        CPhase with sqiswap basis changes from 2 to 3 gates. Then, decide to still
+        accept since reducing the SWAP cost is more important.
 
-        After considering a sub, move to mapped_dag and update intermediate_required_predecessors.
-        NOTE: in rewrite we know only 2Q gates, and no dependencies inside of the intermediate layer.
-        This means we can just eval the cost without needing to do any complicated bookkeeping.
+        After, move to mapped_dag and update intermediate_required_predecessors. in
+        rewrite we know only 2Q gates, and no dependencies in the intermediate layer.
+        means we can just eval the cost without needing to do any messy bookkeeping.
         """
-
         extended_set = self._obtain_extended_set(dag, self._front_layer)
 
         trial_layout = self._current_layout.copy()
@@ -273,7 +266,8 @@ class SabreSwapVS(LegacySabreSwap):
                 )
                 continue
 
-            # use lookahead because these swaps are virtual - they have no cost related to parallelism
+            # use lookahead because these swaps are virtual
+            # they have no cost related to parallelism
             no_sub_score = self._score_heuristic(
                 "basic", self._front_layer, extended_set, trial_layout
             )
@@ -341,6 +335,7 @@ class SabreSwapVS(LegacySabreSwap):
             self.qubits_decay[best_swap[1]] += DECAY_RATE
 
     def run(self, dag):
+        """Run the pass on `dag`."""
         # Initialize variables
         self._initialize_variables(dag)
 

@@ -316,8 +316,8 @@ class SabreSwap(TransformationPass):
         )
 
     def _reset_qubits_decay(self):
-        """Reset all qubit decay factors to 1 upon request (to forget about
-        past penalizations)."""
+        """Reset all qubit decay factors to 1 upon request (to forget about past
+        penalizations)."""
         self.qubits_decay = {k: 1 for k in self.qubits_decay.keys()}
 
     def _build_required_predecessors(self, dag):
@@ -330,13 +330,12 @@ class SabreSwap(TransformationPass):
         return out
 
     def _successors(self, node, dag):
-        """Return an iterable of the successors along each wire from the given
-        node.
+        """Return an iterable of the successors along each wire from the given node.
 
-        This yields the same successor multiple times if there are
-        parallel wires (e.g. two adjacent operations that have one clbit
-        and qubit in common), which is important in the swapping
-        algorithm for detecting if each wire has been accounted for.
+        This yields the same successor multiple times if there are parallel wires (e.g.
+        two adjacent operations that have one clbit and qubit in common), which is
+        important in the swapping algorithm for detecting if each wire has been
+        accounted for.
         """
         for _, successor, _ in dag.edges(node):
             if isinstance(successor, DAGOpNode):
@@ -376,13 +375,11 @@ class SabreSwap(TransformationPass):
     def _obtain_swaps(self, front_layer, current_layout):
         """Return a set of candidate swaps that affect qubits in front_layer.
 
-        For each virtual qubit in front_layer, find its current location
-        on hardware and the physical qubits in that neighborhood. Every
-        SWAP on virtual qubits that corresponds to one of those physical
-        couplings is a candidate SWAP.
+        For each virtual qubit in front_layer, find its current location on hardware and
+        the physical qubits in that neighborhood. Every SWAP on virtual qubits that
+        corresponds to one of those physical couplings is a candidate SWAP.
 
-        Candidate swaps are sorted so SWAP(i,j) and SWAP(j,i) are not
-        duplicated.
+        Candidate swaps are sorted so SWAP(i,j) and SWAP(j,i) are not duplicated.
         """
         candidate_swaps = set()
         for node in front_layer:
@@ -429,10 +426,9 @@ class SabreSwap(TransformationPass):
     ):
         """Return a heuristic score for a trial layout.
 
-        Assuming a trial layout has resulted from a SWAP, we now assign
-        a cost to it. The goodness of a layout is evaluated based on how
-        viable it makes the remaining virtual gates that must be
-        applied.
+        Assuming a trial layout has resulted from a SWAP, we now assign a cost to it.
+        The goodness of a layout is evaluated based on how viable it makes the remaining
+        virtual gates that must be applied.
         """
         first_cost = self._compute_cost(front_layer, layout)
         if heuristic == "basic":

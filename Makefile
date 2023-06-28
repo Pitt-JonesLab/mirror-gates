@@ -22,7 +22,18 @@ init:
 	fi
 	$(PIP) install -e ../transpile_benchy --quiet
 
-clean:
+	if [ -d "../monodromy" ]; then \
+		echo "Repository already exists. Updating with latest changes."; \
+		cd ../monodromy && git pull; \
+	else \
+		cd .. && git clone https://github.com/evmckinney9/monodromy.git; \
+		cd monodromy; \
+	fi
+	$(PIP) install -e ../monodromy --quiet
+
+
+
+clean: movefigs
 	@find ./ -type f -name '*.pyc' -exec rm -f {} \; 2>/dev/null || true
 	@find ./ -type d -name '__pycache__' -exec rm -rf {} \; 2>/dev/null || true
 	@find ./ -type f -name 'Thumbs.db' -exec rm -f {} \; 2>/dev/null || true

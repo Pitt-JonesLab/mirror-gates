@@ -1,5 +1,4 @@
-"""This test file verifies that a given circuit is equivalent before and after
-a set of transformation passes.
+"""Verifies that a given circuit is equivalent following transformation passes.
 
 In the case of virtual-swap transformations, the output order of qubits
 may be changed. However, each transformation should have an optional
@@ -13,12 +12,13 @@ from qiskit.quantum_info import Operator
 from qiskit.transpiler import PassManager
 from qiskit.transpiler.coupling import CouplingMap
 
-from virtual_swap.cns_sabre_v2 import CNS_SabreSwap_V2
+# from virtual_swap.deprecated.cns_sabre_v2 import CNS_SabreSwap_V2
+from virtual_swap.cns_sabre_v3 import SabreSwapVS
 
 
 # Function to build circuits.
 def build_circuits():
-    """Builds a list of random quantum circuits for testing.
+    """Build a list of random quantum circuits for testing.
 
     Modify this function to build your specific circuits.
     """
@@ -30,12 +30,9 @@ def build_circuits():
 
 # Function to define your set of transformation passes.
 def transformation_passes():
-    """Defines a list of transformation passes for testing.
-
-    Modify this function to use your specific transformation passes.
-    """
+    """Define a list of transformation passes for testing."""
     coupling_map = CouplingMap.from_grid(2, 2)
-    passes = [CNS_SabreSwap_V2(coupling_map)]
+    passes = [SabreSwapVS(coupling_map)]
     return passes
 
 
@@ -54,11 +51,10 @@ for i, transformation_pass in enumerate(transformation_passes()):
 
 @pytest.mark.parametrize("test_case", test_cases, ids=test_case_ids)
 def test_transformation_pass(test_case):
-    """Test case for verifying that a circuit is equivalent before and after a
-    transformation pass.
+    """Test case for a transformation pass.
 
-    The test passes if the circuit is equivalent before and after the
-    transformation, checked using Operator.equiv().
+    The test passes if the circuit is equivalent before and after the transformation,
+    checked using Operator.equiv().
     """
     circuit, transformation_pass = test_case
 
@@ -69,7 +65,7 @@ def test_transformation_pass(test_case):
     # Apply the transformation
     transformed_circuit = pass_manager.run(circuit)
 
-    # Check that the circuit is equivalent to itself before and after the transformation.
+    # Check circuit is equivalent to itself before and after the transformation.
     assert Operator(circuit).equiv(
         Operator(transformed_circuit)
     ), f"{type(transformation_pass).__name__} broke equivalence"

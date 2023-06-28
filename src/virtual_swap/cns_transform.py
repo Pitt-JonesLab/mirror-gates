@@ -44,34 +44,11 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
 
     else:
         # can write a generic sub, but without solutions for 1Q gates
-        # warnings.warn(f"Unsupported operation, {node.name}, Use generic monodromy sub")
+        # warnings.warn(f"Unsupported operation, {node.name}, Use generic sub")
         # make a temp circuit
         temp_circuit = QuantumCircuit(2)
         temp_circuit.append(node.op, [0, 1])  # node.qargs)
         temp_circuit.swap(0, 1)
-        # get the depth w.r.t sqiswap basis gate
-        # depth = depth_calc._operation_to_cost(Operator(temp_circuit))
-        # create a new DAGOpNode using sqiswap basis gate applied #depth times
-
-        # FIXME, this is a hack, used to make sure after more consolidate+unrolls the propety is preserved
-        # these are dummy circuits, used just because I know the cost works out to be the same
-
-        # # edge case
-        # if depth == 0:
-        #     temp_circuit = QuantumCircuit(2)
-        #     temp_circuit.u(np.pi, np.pi, np.pi, 0)
-        #     temp_circuit.u(np.pi, np.pi, np.pi, 1)
-        #     return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
-
-        # while True:
-        #     try:
-        #         random_op = random_unitary(dims=4)
-        #         temp_circuit = QuantumCircuit(2)
-        #         temp_circuit.append(random_op, [0, 1])  # node.qargs)
-        #         assert depth == depth_calc._operation_to_cost(Operator(temp_circuit))
-        #         break
-        #     except AssertionError:
-        #         continue
         return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
 
     # else:
@@ -79,7 +56,7 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
 
 
 def cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircuit:
-    """Transforms DAG by applying CNS transformations on multiple nodes.
+    """Transform DAG by applying CNS transformations on multiple nodes.
 
     Args:
         dag (DAGCircuit): DAG to be transformed (will not be modified)
@@ -99,7 +76,8 @@ def cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircui
         qargs = [layout.get(qarg, qarg) for qarg in node.qargs]
 
         # check if node is in list of nodes to be transformed
-        # FIXME, this is true multiple times, semantic_eq checks if is a CX but not if the exact same CX
+        # FIXME, this is true multiple times,
+        # semantic_eq checks if is a CX but not if the exact same CX
         if any(node == h_node for h_node in h_nodes):
             # if any(DAGNode.semantic_eq(node, h_node) for h_node in h_nodes):
             try:  # checks if has a defined CNS transformation

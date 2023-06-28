@@ -1,3 +1,4 @@
+"""Test the CNS transformation on a circuit DAG."""
 from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.quantum_info import Operator
@@ -6,6 +7,7 @@ from virtual_swap.cns_transform import cns_transform
 
 
 def generate_circuit():
+    """Generate a circuit to test the CNS transformation."""
     qc = QuantumCircuit(3)
     qc.t(2)
     qc.iswap(0, 2)
@@ -23,6 +25,7 @@ def generate_circuit():
 
 
 def test_single_nodecns_transform():
+    """Test the CNS transformation on a single node."""
     # Generate the original circuit and calculate its operator
     qc_original = generate_circuit()
     dag_original = circuit_to_dag(qc_original)
@@ -42,6 +45,7 @@ def test_single_nodecns_transform():
 
 
 def test_multiple_nodescns_transform():
+    """Test the CNS transformation on multiple nodes."""
     # Generate the original circuit and calculate its operator
     qc_original = generate_circuit()
     dag_original = circuit_to_dag(qc_original)
