@@ -86,6 +86,13 @@ class LayoutRouteSqiswap(AbstractRunner, ABC):
         self.main_process()
         # self.post_process()
 
+    def reset(self):
+        """Reset the pass manager."""
+        self.pm = PassManager()
+        self.pre_process()
+        self.main_process()
+        # self.post_process()
+
     # NOTE, these u and u3s is somewhat of a monkey fix :P
     # I don't know why but Optimize1qGates was breaking
 
@@ -294,14 +301,14 @@ class QiskitLevel3(QiskitTranspileRunner):
         self.cx_basis = cx_basis
         if self.cx_basis:
             self.basis_gate = CXGate()
-            self.basis_gates = ["u", "cx"]
+            self.basis_gates = ["u", "cx", "id"]
             name = r"Qiskit-$\texttt{CNOT}$"
         else:
             self.basis_gate = iSwapGate().power(1 / 2)
             from qiskit.circuit.library import XXPlusYYGate
 
             self.basis_gate = XXPlusYYGate(theta=np.pi / 2)
-            self.basis_gates = ["u", "xx_plus_yy"]
+            self.basis_gates = ["u", "xx_plus_yy", "id"]
             name = r"Qiskit-$\sqrt{\texttt{iSWAP}}$"
         super().__init__(coupling, name=name)
 
@@ -317,6 +324,12 @@ class QiskitLevel3(QiskitTranspileRunner):
             circuit.assign_parameters(
                 {param: np.random.uniform(0, 2 * np.pi)}, inplace=True
             )
+
+        # # remove ids
+        # dag = circuit_to_dag(circuit)
+        # dag.remove_all_ops_named("id")
+        # circuit = dag_to_circuit(dag)
+
         transp = transpile(
             circuit,
             coupling_map=self.coupling,
