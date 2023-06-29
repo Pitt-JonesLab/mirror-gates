@@ -373,8 +373,11 @@ class SabreSwapVS(LegacySabreSwap):
         self.property_set["final_layout"] = self._current_layout
 
         # write accepted_subs as fraction of total number of 2Q gates considered
-        self.property_set["accepted_subs"] = (
-            1.0 * self._total_subs / self._considered_subs
-        )
+        if self._considered_subs == 0:
+            self.property_set["accepted_subs"] = 0
+        else:
+            self.property_set["accepted_subs"] = (
+                1.0 * self._total_subs / self._considered_subs
+            )
 
         return self._mapped_dag
