@@ -1,24 +1,15 @@
 """Pre-defined pass managers for benchmarking."""
 
-# from qiskit import transpile
-# from qiskit.transpiler.passmanager import PassManager
-from abc import ABC, abstractmethod
+from abc import ABC
 
-import numpy as np
 from monodromy.depthPass import MonodromyDepth
 from qiskit import transpile
 from qiskit.circuit.library import CXGate, iSwapGate
-from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.transpiler import PassManager
-from qiskit.transpiler.basepasses import AnalysisPass, TransformationPass
 from qiskit.transpiler.passes import (
     ApplyLayout,
-    Collect2qBlocks,
-    CommutativeCancellation,
-    ConsolidateBlocks,
     EnlargeWithAncilla,
     FullAncillaAllocation,
-    Optimize1qGates,
     OptimizeSwapBeforeMeasure,
     RemoveBarriers,
     RemoveDiagonalGatesBeforeMeasure,
@@ -26,379 +17,161 @@ from qiskit.transpiler.passes import (
     RemoveResetInZeroState,
     Unroller,
 )
+from transpile_benchy.runner import CustomPassManager
 
-# this code is buggy, see https://github.com/Qiskit/qiskit-terra/pull/9375
-# I can't use this version bc qiskit version missing DAGCircuit functionality
-from transpile_benchy.runner import AbstractRunner
-
-from virtual_swap.cns_sabre_v3 import ParallelSabreSwapVS, SabreSwapVS
-
-# from virtual_swap.deprecated.cns_brute import CNS_Brute
-# from virtual_swap.qiskit.sabre_swap import SabreSwap
+from virtual_swap.cns_sabre_v3 import ParallelSabreSwapVS
 from virtual_swap.qiskit.sabre_layout import SabreLayout
-
-# from qiskit.transpiler.passes import SabreLayout
-from virtual_swap.sqiswap_equiv import RemoveIGates
+from virtual_swap.sqiswap_equiv import sel  # noqa: F401
+from virtual_swap.utilities import AssignAllParameters, RemoveIGates
 
 LAYOUT_TRIALS = 6  # (physical CPU_COUNT)
-SWAP_TRIALS = 6  # 6  # makes it so much slower :(
+SWAP_TRIALS = 6
 
 
-class SaveCircuitProgress(AnalysisPass):
-    """Used to save circuit for debugging progress."""
+class CustomLayoutRoutingManager(CustomPassManager, ABC):
+    """Subclass for CustomPassManager implementing pre- and post-processing."""
 
-    def __init__(self, qc_name=None):
-        """Initialize the pass."""
-        super().__init__()
-        self.qc_name = qc_name or "circuit_progress"
-
-    def run(self, dag):
-        """Run the pass."""
-        # convert dag to circuit,
-        # save into property_set
-        from qiskit.converters import dag_to_circuit
-
-        self.property_set[self.qc_name] = dag_to_circuit(dag)
-        return dag
-
-
-class AssignAllParameters(TransformationPass):
-    """Assigns all parameters to a random value."""
-
-    def __init__(self):
-        """Initialize the pass."""
-        super().__init__()
-
-    def run(self, dag):
-        """Run the pass."""
-        # for every parameter, assign a random value [0, 2pi]
-        # not sure I good way to do this, do messy in meantime
-        qc = dag_to_circuit(dag)
-        for param in qc.parameters:
-            qc.assign_parameters({param: np.random.uniform(0, 2 * np.pi)}, inplace=True)
-        return circuit_to_dag(qc)
-
-
-class LayoutRouteSqiswap(AbstractRunner, ABC):
-    """Subclass for AbstractRunner implementing pre- and post-processing."""
-
-    def __init__(self, coupling, logger=None, name=None):
+    def __init__(self, coupling, cx_basis=False, logger=None):
         """Initialize the pass manager."""
         self.coupling = coupling
         self.logger = logger
-        self.name = name or self.__class__.__name__
-        self.pm = PassManager()
-        self.pre_process()
-        self.main_process()
-        # self.post_process()
+        self.cx_basis = cx_basis
+        if self.cx_basis:
+            self.basis_gate = CXGate()
+            self.name += r"-$\texttt{CNOT}$"
+            self.basis_gates = ["u", "cx", "id"]
+        else:
+            self.basis_gate = iSwapGate().power(1 / 2)
+            self.name += r"-$\sqrt{\texttt{iSWAP}}$"
+            self.basis_gates = ["u", "xx_plus_yy", "id"]
+        super().__init__(name=self.name)
 
-    def reset(self):
-        """Reset the pass manager."""
-        self.pm = PassManager()
-        self.pre_process()
-        self.main_process()
-        # self.post_process()
-
-    # NOTE, these u and u3s is somewhat of a monkey fix :P
-    # I don't know why but Optimize1qGates was breaking
-
-    def pre_process(self):
+    def build_pre_process(self) -> PassManager:
         """Pre-process the circuit before running."""
-        self.pm.append(RemoveIGates())
-        self.pm.append(RemoveBarriers())
-        self.pm.append(RemoveFinalMeasurements())
-        self.pm.append(AssignAllParameters())
-        self.pm.append(Unroller(["u", "u3", "cx", "iswap", "swap"]))
-        self.pm.append(OptimizeSwapBeforeMeasure())
-        self.pm.append(RemoveResetInZeroState())
-        self.pm.append(RemoveDiagonalGatesBeforeMeasure())
+        pm = PassManager()
+        pm.append(RemoveIGates())
+        pm.append(RemoveBarriers())
+        pm.append(RemoveFinalMeasurements())
+        pm.append(AssignAllParameters())
+        pm.append(Unroller(["u", "u3", "cx", "iswap", "swap"]))
+        pm.append(OptimizeSwapBeforeMeasure())
+        pm.append(RemoveResetInZeroState())
+        pm.append(RemoveDiagonalGatesBeforeMeasure())
+        return pm
 
-    def post_process(self):
+    def build_post_process(self) -> PassManager:
         """Post-process the circuit after running."""
-        # if self.cx_basis or True:
-        #     self.pm.append(Unroller(["u", "cx", "swap"]))
-        # else:
-        #     self.pm.append(Unroller(["u", "cx", "iswap", "swap"]))
-        self.pm.append(Unroller(["u", "cx", "iswap", "swap"]))
-        self.pm.append(CommutativeCancellation())
-
-        self.pm.append(
-            [
-                # adding this unroller fixes issue
-                # consolidate block was not pushing together
-                # the iswap_primes and 2Q blocks
-                RemoveResetInZeroState(),
-                OptimizeSwapBeforeMeasure(),
-                RemoveDiagonalGatesBeforeMeasure(),
-                # this 1Q optimize is unnecessary, keeping it for cleaner mid circuits
-                Optimize1qGates(basis=["u", "cx", "iswap", "swap"]),
-                # debug, save current circuit to property_set
-                SaveCircuitProgress(),
-                # XXXX
-                Collect2qBlocks(),
-                ConsolidateBlocks(force_consolidate=True),
-            ]
-        )
-        # if not self.cx_basis:
-        #     self.pm.append(
-        #         [
-        #             RootiSwapWeylDecomposition(),
-        #             Optimize1qGates(basis=["u", "u3", "cx", "iswap", "swap"]),
-        #         ]
-        #     )
-        # else:
-        #     self.pm.append(Unroller(["u", "cx"]))
-        # self.pm.append(TwoQubitBasisDecomposer(gate=CXGate(), euler_basis = 'u')
-        # Optimize1qGates(basis=["cx", "iswap", "swap"]),
-        # does not help for sqiswap, but maybe I need to add
-        # something inside of this function?
-        # not sure that any rules would apply
+        pm = PassManager()
+        # pm.append(Unroller(["u", "cx", "iswap", "swap"]))
+        # pm.append(CommutativeCancellation())
+        # pm.append(RemoveResetInZeroState())
+        # pm.append(OptimizeSwapBeforeMeasure())
+        # pm.append(RemoveDiagonalGatesBeforeMeasure())
+        # pm.append(Optimize1qGates(basis=["u", "cx", "iswap", "swap"]))
+        # pm.append(SaveCircuitProgress())
+        # pm.append(Collect2qBlocks())
+        # pm.append(ConsolidateBlocks(force_consolidate=True))
 
         # hardcode sqiswap/cx relative scaling
         s = 1 if self.cx_basis else 0.5
-        self.pm.append(MonodromyDepth(basis_gate=self.basis_gate, scale=s))
+        # need to unroll for consolidate blocks to work
+        pm.append(Unroller(["u", "cx", "iswap", "swap"]))
+        pm.append(MonodromyDepth(basis_gate=self.basis_gate, gate_cost=s))
+        return pm
 
-        # # if self.cx_basis:
-        # #     self.pm.append(Unroller(["u", "cx", "swap"]))
-        # # else:
-        # #     self.pm.append(Unroller(["u", "cx", "iswap", "swap"]))
+    class QiskitRunner:
+        """Run stock transpiler on the circuit."""
 
-    @abstractmethod
-    def main_process(self):
-        """Abstract method for main processing."""
-        pass
+        def __init__(self, coupling, basis_gates):
+            """Initialize the runner."""
+            self.coupling = coupling
+            self.basis_gates = basis_gates
+            self.property_set = {}
+
+        def run(self, circuit):
+            """Run the transpiler on the circuit."""
+            return transpile(
+                circuit,
+                coupling_map=self.coupling,
+                optimization_level=3,
+                basis_gates=self.basis_gates,
+                initial_layout=self.property_set.get("post_layout", None),
+            )
 
     def run(self, circuit):
-        """Run the transpiler on the circuit."""
-        transp = self.pm.run(circuit)
-        # run qiskit for random optimizations
-        transp = transpile(
-            transp,
-            coupling_map=self.coupling,
-            optimization_level=3,
-            basis_gates=self.basis_gates,
-            initial_layout=self.pm.property_set["post_layout"],
-        )
-        # finalize with post processing
-        pre_property_set = self.pm.property_set
-        self.pm = PassManager()
-        self.post_process()
-        transp = self.pm.run(transp)
-        self.pm.property_set.update(pre_property_set)
-        return transp
-        try:
-            return super().run(circuit)
-        except Exception as e:
-            print(e)
-            return None
+        """Run the transpiler on the circuit.
+
+        NOTE: the super class run method is overridden here to allow for
+        the interruption between main- and post- processing to accommodate
+        for Qiskit's optimization level 3 transpiler.
+        """
+        self.property_set = {}  # reset property set
+        stages = [
+            self.build_pre_process(),
+            self.build_main_process(),
+            self.QiskitRunner(self.coupling, self.basis_gates),
+            self.build_post_process(),
+        ]
+        for stage in stages:
+            stage.property_set = self.property_set
+            circuit = stage.run(circuit)
+            self.property_set.update(stage.property_set)
+
+        # patch cleanup
+        if "Qiskit" in self.name:
+            self.property_set["accepted_subs"] = 0
+
+        return circuit
 
 
-class SabreVS(LayoutRouteSqiswap):
+class SabreVS(CustomLayoutRoutingManager):
     """Sabre CNS V2 pass manager."""
 
     def __init__(self, coupling, parallel=True, cx_basis=False, logger=None):
         """Initialize the pass manager."""
         self.parallel = parallel
-        self.cx_basis = cx_basis
-        if self.cx_basis:
-            self.basis_gate = CXGate()
-            name = r"SABREVS-$\texttt{CNOT}$"
-            self.basis_gates = ["u", "cx"]
-        else:
-            self.basis_gate = iSwapGate().power(1 / 2)
-            name = r"SABREVS-$\sqrt{\texttt{iSWAP}}$"
-            self.basis_gates = ["u", "xx_plus_yy"]
+        self.name = "SABREVS"
+        super().__init__(coupling, cx_basis=cx_basis, logger=logger)
 
-        super().__init__(coupling, logger, name=name)
-
-    def main_process(self):
+    def build_main_process(self):
         """Run SabreVS."""
-        # # """Run SabreVS."""
+        pm = PassManager()
+        # # single-shot
+        # routing_method = SabreSwapVS(coupling_map=self.coupling)
+
         routing_method = ParallelSabreSwapVS(
             coupling_map=self.coupling,
             trials=SWAP_TRIALS,
             basis_gate=self.basis_gate,
             parallel=self.parallel,
         )
-        # single-shot
-        routing_method = SabreSwapVS(coupling_map=self.coupling)
+
         layout_method = SabreLayout(
             coupling_map=self.coupling,
             routing_pass=routing_method,
             layout_trials=LAYOUT_TRIALS,
         )
-        self.pm.append(layout_method)
-
-        self.pm.append(
-            [FullAncillaAllocation(self.coupling), EnlargeWithAncilla(), ApplyLayout()]
-        )
-        self.pm.append(routing_method)
-        # self.pm.append(SaveCircuitProgress("mid0"))
-
-    def run(self, circuit):
-        """Run the transpiler on the circuit."""
-        # return super().run(circuit)
-        try:
-            return super().run(circuit)
-        finally:
-            if self.logger is not None and self.pm.property_set:
-                self.logger.info(
-                    f"Accepted CNS subs: {self.pm.property_set['accepted_subs']}"
-                )
+        pm.append(layout_method)
+        pm.append(FullAncillaAllocation(self.coupling))
+        pm.append(EnlargeWithAncilla())
+        pm.append(ApplyLayout())
+        pm.append(routing_method)
+        return pm
 
 
-class SabreQiskit(LayoutRouteSqiswap):
-    """Sabre Qiskit pass manager."""
-
-    def __init__(self, coupling, cx_basis=False):
-        """Initialize the pass manager."""
-        self.cx_basis = cx_basis
-        if self.cx_basis:
-            self.basis_gate = CXGate()
-            name = r"Qiskit-$\texttt{CNOT}$"
-        else:
-            self.basis_gate = iSwapGate().power(1 / 2)
-            name = r"Qiskit-$\sqrt{\texttt{iSWAP}}$"
-        super().__init__(coupling, name=name)
-
-    def pre_process(self):
-        """Pre-process the circuit before running."""
-
-        class TempNoSubs(AnalysisPass):
-            """Used to save circuit for debugging progress.
-
-            Temporarily ugly fix to silence warnings
-            """
-
-            def run(self, dag):
-                self.property_set["accepted_subs"] = 0
-                return dag
-
-        self.pm.append(TempNoSubs())
-
-    def main_process(self):
-        """Run SabreQiskit."""
-        # override trials,
-        # when we override the routing for CNS, it doesn't allow parallel trials
-        # we set trials to 1 here in the qiskit baseline for normalization
-        # however, each transpiler still runs best of N runs
-        # routing_method = SabreSwap(coupling_map= self.coupling, trials=NUM_TRIALS)
-        # it will use the default SabreSwap with trials=CPU_COUNT
-        layout_method = SabreLayout(
-            coupling_map=self.coupling,
-            layout_trials=LAYOUT_TRIALS,
-            swap_trials=SWAP_TRIALS,
-        )
-        self.pm.append(layout_method)
-        # # NOTE, I think SabreLayout already does this
-        # # NVM, only if routing_pass is None
-        # self.pm.append(
-        #     [FullAncillaAllocation(self.coupling),
-        #      EnlargeWithAncilla(),
-        #      ApplyLayout()
-        #      ]
-        # )
-        # self.pm.append(routing_method)
-
-
-class QiskitTranspileRunner(LayoutRouteSqiswap):
-    """Used to noop the pre-, main-, post- passes."""
-
-    @abstractmethod
-    def run(self):
-        """Abstract method for overloaded run method."""
-        pass
-
-
-# same as SabreQiskit, but need to test if level=3 has additional optimizations
-# SabreQiskit is just Layout/Routing, doesn't look for whatever other cancellations
-# that might be in level=3
-class QiskitLevel3(QiskitTranspileRunner):
+class QiskitLevel3(CustomLayoutRoutingManager):
     """Qiskit level 3 pass manager."""
 
     def __init__(self, coupling, cx_basis=False):
         """Initialize the pass manager."""
-        self.coupling = coupling
-        self.cx_basis = cx_basis
-        if self.cx_basis:
-            self.basis_gate = CXGate()
-            self.basis_gates = ["u", "cx", "id"]
-            name = r"Qiskit-$\texttt{CNOT}$"
-        else:
-            self.basis_gate = iSwapGate().power(1 / 2)
-            from qiskit.circuit.library import XXPlusYYGate
+        self.name = "Qiskit"
+        super().__init__(coupling, cx_basis=cx_basis)
 
-            self.basis_gate = XXPlusYYGate(theta=np.pi / 2)
-            self.basis_gates = ["u", "xx_plus_yy", "id"]
-            name = r"Qiskit-$\sqrt{\texttt{iSWAP}}$"
-        super().__init__(coupling, name=name)
+    def build_main_process(self):
+        """Do nothing.
 
-    def main_process(self):
-        """Abstract method for main processing."""
-        pass
-
-    def run(self, circuit):
-        """Run the transpiler on the circuit."""
-        from qiskit import transpile
-        from qiskit.converters import circuit_to_dag
-
-        for param in circuit.parameters:
-            circuit.assign_parameters(
-                {param: np.random.uniform(0, 2 * np.pi)}, inplace=True
-            )
-
-        # # remove ids
-        # dag = circuit_to_dag(circuit)
-        # dag.remove_all_ops_named("id")
-        # circuit = dag_to_circuit(dag)
-
-        transp = transpile(
-            circuit,
-            coupling_map=self.coupling,
-            basis_gates=self.basis_gates,
-            optimization_level=3,
-        )
-        s = 1 if self.cx_basis else 0.5
-        depth = MonodromyDepth(basis_gate=self.basis_gate, scale=s)
-        depth.run(circuit_to_dag(transp))
-        self.pm.property_set = depth.property_set
-        self.pm.property_set["accepted_subs"] = 0
-        return transp
-
-
-# class BruteCNS(LayoutRouteSqiswap):
-#     def __init__(self, coupling):
-#         pm = PassManager()
-#         pm.append(Unroller(["u", "cx", "iswap", "swap"]))
-#         pm.append(TrivialLayout(coupling))
-#         pm.append(CNS_Brute(coupling))
-#         # pm.append(Unroller(["u", "cx", "iswap", "swap"]))
-#         super().__init__(pm)
-
-# class Baseline(CustomPassManager):
-#     def __init__(self, coupling):
-#         self.coupling = coupling
-#         # NOTE, for some reason the StagedPassManager, created by level_3_pass_manager
-#         # I cannot append my own pass to it
-#         # config = PassManagerConfig(coupling_map=coupling, basis_gates=["cx", "u3"])
-#         # self.pm = level_3_pass_manager(config)
-#         # super().__init__(pm)
-
-#     # override the run function, see NOTE above
-#     def run(self, qc):
-#         intermediate = transpile(
-#             qc,
-#             coupling_map=self.coupling,
-#             basis_gates=["cx", "u3"],
-#             optimization_level=3,
-#         )
-#         temp_pm = PassManager()
-
-#         temp_pm.append(
-#             [
-#                 Collect2qBlocks(),
-#                 ConsolidateBlocks(force_consolidate=True),
-#                 RootiSwapWeylDecomposition(),
-#             ]
-#         )
-#         return temp_pm.run(intermediate)
+        NOTE: just do nothing here,
+        then the QiskitRunner will handle placement and routing.
+        transpile() has initial_layout=None if post_layout has not been set.
+        """
+        return PassManager()

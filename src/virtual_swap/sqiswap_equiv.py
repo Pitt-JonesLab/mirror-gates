@@ -12,7 +12,6 @@ from qiskit.circuit.library.standard_gates import (
     XXPlusYYGate,
     iSwapGate,
 )
-from qiskit.transpiler.basepasses import TransformationPass
 
 cx_decomp = QuantumCircuit(2)
 cx_decomp.u(np.pi / 2, -np.pi / 2, 0, 0)
@@ -55,17 +54,3 @@ sel.add_equivalence(SwapGate(), swap_decomp)
 # qc = QuantumCircuit(1)
 # qc.u(0, 0, 0, 0)
 # sel.add_equivalence(IGate(), qc)
-
-
-# write a transformationpass that subs all IGates with U(0, 0, 0)
-class RemoveIGates(TransformationPass):
-    """Remove all IGates from the circuit."""
-
-    def __init__(self):
-        """Initialize the pass."""
-        super().__init__()
-
-    def run(self, dag):
-        """Run the pass."""
-        dag.remove_all_ops_named("id")
-        return dag
