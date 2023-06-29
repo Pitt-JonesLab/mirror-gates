@@ -62,6 +62,10 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
     def build_post_process(self) -> PassManager:
         """Post-process the circuit after running."""
         pm = PassManager()
+
+        # I don't think these are necessary
+        # after we already have Qiskit's optimization level 3
+
         # pm.append(Unroller(["u", "cx", "iswap", "swap"]))
         # pm.append(CommutativeCancellation())
         # pm.append(RemoveResetInZeroState())
@@ -136,6 +140,7 @@ class SabreVS(CustomLayoutRoutingManager):
     def build_main_process(self):
         """Run SabreVS."""
         pm = PassManager()
+
         # # single-shot
         # routing_method = SabreSwapVS(coupling_map=self.coupling)
 
