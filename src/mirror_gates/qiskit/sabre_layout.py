@@ -215,8 +215,9 @@ class SabreLayout(TransformationPass):
 
                 # Need some logic to determine if this is the best layout thus far
                 # and if so save it
-                if best_cost is None or pm.property_set["best_cns_cost"] < best_cost:
-                    best_cost = pm.property_set["best_cns_cost"]
+                assert pm.property_set["best_score"] is not None
+                if best_cost is None or pm.property_set["best_score"] < best_cost:
+                    best_cost = pm.property_set["best_score"]
                     best_layout = initial_layout
 
             for qreg in dag.qregs.values():

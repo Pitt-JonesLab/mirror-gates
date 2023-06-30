@@ -81,6 +81,7 @@ class ParallelSabreSwapMS(TransformationPass):
         best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
         self.property_set["final_layout"] = best_property_set["final_layout"]
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
+        self.property_set["best_score"] = best_score
         return best_result
 
     def _serial_run(self, dag: DAGCircuit) -> DAGCircuit:
@@ -92,6 +93,7 @@ class ParallelSabreSwapMS(TransformationPass):
         best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
         self.property_set["final_layout"] = best_property_set["final_layout"]
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
+        self.property_set["best_score"] = best_score
         return best_result
 
     def calculate_score(self, result: DAGCircuit) -> float:
@@ -258,7 +260,10 @@ class SabreSwapMS(LegacySabreSwap):
         extended_set = self._obtain_extended_set(dag, self._front_layer)
 
         trial_layout = self._current_layout.copy()
-        for node in self._intermediate_layer:
+
+        # for node in self._intermediate_layer:
+        # XXX instead of all, just pop the first one
+        for node in [self._intermediate_layer.pop(0)]:
             # handles barriers, measure, reset, etc.
             if not isinstance(node.op, Gate):
                 self._apply_gate(
@@ -280,7 +285,7 @@ class SabreSwapMS(LegacySabreSwap):
             )
             self._considered_subs += 1
 
-            if sub_score < no_sub_score:
+            if sub_score <= no_sub_score:
                 self._total_subs += 1
                 self._apply_gate(
                     self._mapped_dag, node_prime, trial_layout, self._canonical_register

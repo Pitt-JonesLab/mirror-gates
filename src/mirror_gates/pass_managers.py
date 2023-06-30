@@ -18,7 +18,7 @@ from qiskit.transpiler.passes import (
 )
 from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 
-from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS
+from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS  # , SabreSwapMS
 from mirror_gates.qiskit.sabre_layout import SabreLayout
 from mirror_gates.sqiswap_equiv import sel  # noqa: F401
 from mirror_gates.utilities import AssignAllParameters, RemoveIGates
