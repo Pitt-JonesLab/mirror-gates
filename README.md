@@ -1,8 +1,11 @@
-# virtual-swap transpilation
-This project focuses on optimizing quantum transpilation by combining layout and routing stages with gate decomposition, primarily using the iSWAP gate and a unique concept of a "virtual swap" gate.
+# mirror-gate routing
 
-![Tests](https://github.com/Pitt-JonesLab/virtual-swap/actions/workflows/tests.yml/badge.svg?branch=main)
-![Format Check](https://github.com/Pitt-JonesLab/virtual-swap/actions/workflows/format-check.yml/badge.svg?branch=main)
+#### (virtual-swap transpilation)
+
+This project focuses on optimizing quantum transpilation by combining layout and routing stages with gate decomposition. The mirror gate of $\texttt{U}$ is $\texttt{U} \cdot \texttt{SWAP}$. It can be used to make routing cheaper without changing the cost of decomposition. Or in some cases, can make decomposition cheaper.
+
+![Tests](https://github.com/Pitt-JonesLab/mirror-gates/actions/workflows/tests.yml/badge.svg?branch=main)
+![Format Check](https://github.com/Pitt-JonesLab/mirror-gates/actions/workflows/format-check.yml/badge.svg?branch=main)
 
 ## Project Overview
 
@@ -10,17 +13,7 @@ Traditionally, transpilation in quantum computing treats layout and routing as s
 
 ## Key Features
 
-1. **iSWAP Gate Recognition**: Our approach hinges on treating the iSWAP as a basis gate and understanding its role in decomposing two-qubit operations.
-
-2. **Virtual SWAP (vSWAP) Gate**: A novel aspect of our work is the introduction of a "virtual swap" gate, which helps to optimize circuit depth and swap count. This takes advantage of the "free" data movement within CNOT+SWAP operations.
-
-3. **Routing Algorithm**: We provide a routing algorithm that leverages the above features to minimize circuit depth and swap count.
-
 _TODO: Insert the main algorithm or function code snippet here_
-
-4. **Circuit Compression**: By integrating gate decomposition into layout and routing, our approach enhances circuit compression during transpilation, resulting in reduced circuit depth and gate count.
-
-_TODO: Insert the code snippet showing how circuit compression is enhanced here_
 
 ## Getting Started
 
@@ -34,11 +27,10 @@ _TODO: Insert the code snippet showing results or comparison chart here_
 
 ## Reference
 
-_TODO:
+\_TODO:
 
 ## Citing Our Work
+
 _Paper in preparation_
 
 _TODO: Insert how to cite your work here_
-
-We hope you find this project useful for your quantum computing endeavors. Feel free to reach out with any questions or suggestions.

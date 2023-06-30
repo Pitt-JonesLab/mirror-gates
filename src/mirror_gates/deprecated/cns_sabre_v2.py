@@ -26,7 +26,7 @@ from qiskit.transpiler.layout import Layout
 from qiskit.transpiler.passes import Unroller
 
 # from concurrent.futures import ProcessPoolExecutor
-from virtual_swap.cns_transform import _get_node_cns
+from mirror_gates.cns_transform import _get_node_cns
 
 logger = logging.getLogger(__name__)
 

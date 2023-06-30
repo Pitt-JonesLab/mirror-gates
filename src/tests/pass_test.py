@@ -1,6 +1,6 @@
 """Verifies that a given circuit is equivalent following transformation passes.
 
-In the case of virtual-swap transformations, the output order of qubits
+In the case of mirror-gate transformations, the output order of qubits
 may be changed. However, each transformation should have an optional
 parameter, `preserve_ordering`, such that additional SWAP gates are
 included to ensure the output of qubits is the same as the input.
@@ -13,7 +13,7 @@ from qiskit.transpiler import PassManager
 from qiskit.transpiler.coupling import CouplingMap
 
 # from virtual_swap.deprecated.cns_sabre_v2 import CNS_SabreSwap_V2
-from virtual_swap.cns_sabre_v3 import SabreSwapVS
+from mirror_gates.cns_sabre_v3 import SabreSwapMS
 
 
 # Function to build circuits.
@@ -32,7 +32,7 @@ def build_circuits():
 def transformation_passes():
     """Define a list of transformation passes for testing."""
     coupling_map = CouplingMap.from_grid(2, 2)
-    passes = [SabreSwapVS(coupling_map)]
+    passes = [SabreSwapMS(coupling_map)]
     return passes
 
 

@@ -3,7 +3,7 @@ from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.quantum_info import Operator
 
-from virtual_swap.cns_transform import cns_transform
+from mirror_gates.cns_transform import cns_transform
 
 
 def generate_circuit():
