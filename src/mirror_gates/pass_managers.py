@@ -2,7 +2,6 @@
 
 from abc import ABC
 
-from monodromy.depthPass import MonodromyDepth
 from qiskit import transpile
 from qiskit.circuit.library import CXGate, iSwapGate
 from qiskit.transpiler import PassManager
@@ -17,7 +16,7 @@ from qiskit.transpiler.passes import (
     RemoveResetInZeroState,
     Unroller,
 )
-from transpile_benchy.runner import CustomPassManager
+from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 
 from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS
 from mirror_gates.qiskit.sabre_layout import SabreLayout
@@ -38,15 +37,17 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         self.cx_basis = cx_basis
         if self.cx_basis:
             self.basis_gate = CXGate()
+            self.gate_costs = 1.0
             self.name += r"-$\texttt{CNOT}$"
             self.basis_gates = ["u", "cx", "id"]
         else:
             self.basis_gate = iSwapGate().power(1 / 2)
+            self.gate_costs = 0.5
             self.name += r"-$\sqrt{\texttt{iSWAP}}$"
             self.basis_gates = ["u", "xx_plus_yy", "id"]
         super().__init__(name=self.name)
 
-    def build_pre_process(self) -> PassManager:
+    def build_pre_stage(self) -> PassManager:
         """Pre-process the circuit before running."""
         pm = PassManager()
         pm.append(RemoveIGates())
@@ -59,13 +60,14 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         pm.append(RemoveDiagonalGatesBeforeMeasure())
         return pm
 
-    def build_post_process(self) -> PassManager:
+    def build_post_stage(self) -> PassManager:
         """Post-process the circuit after running."""
         pm = PassManager()
+        # need to unroll for consolidate blocks to work
+        pm.append(Unroller(["u", "cx", "iswap", "swap"]))
 
         # I don't think these are necessary
         # after we already have Qiskit's optimization level 3
-
         # pm.append(Unroller(["u", "cx", "iswap", "swap"]))
         # pm.append(CommutativeCancellation())
         # pm.append(RemoveResetInZeroState())
@@ -75,12 +77,6 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         # pm.append(SaveCircuitProgress())
         # pm.append(Collect2qBlocks())
         # pm.append(ConsolidateBlocks(force_consolidate=True))
-
-        # hardcode sqiswap/cx relative scaling
-        s = 1 if self.cx_basis else 0.5
-        # need to unroll for consolidate blocks to work
-        pm.append(Unroller(["u", "cx", "iswap", "swap"]))
-        pm.append(MonodromyDepth(basis_gate=self.basis_gate, gate_cost=s))
         return pm
 
     class QiskitRunner:
@@ -111,10 +107,11 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         """
         self.property_set = {}  # reset property set
         stages = [
-            self.build_pre_process(),
-            self.build_main_process(),
+            self.build_pre_stage(),
+            self.build_main_stage(),
             self.QiskitRunner(self.coupling, self.basis_gates),
-            self.build_post_process(),
+            self.build_post_stage(),
+            self.build_metric_stage(),
         ]
         for stage in stages:
             stage.property_set = self.property_set
@@ -137,7 +134,7 @@ class SabreMS(CustomLayoutRoutingManager):
         self.name = "SABREMS"
         super().__init__(coupling, cx_basis=cx_basis, logger=logger)
 
-    def build_main_process(self):
+    def build_main_stage(self):
         """Run SabreMS."""
         pm = PassManager()
 
@@ -172,7 +169,7 @@ class QiskitLevel3(CustomLayoutRoutingManager):
         self.name = "Qiskit"
         super().__init__(coupling, cx_basis=cx_basis)
 
-    def build_main_process(self):
+    def build_main_stage(self):
         """Do nothing.
 
         NOTE: just do nothing here,

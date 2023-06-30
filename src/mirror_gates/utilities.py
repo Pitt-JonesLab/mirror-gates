@@ -3,7 +3,8 @@
 import numpy as np
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.transpiler.basepasses import AnalysisPass, TransformationPass
-from transpile_benchy.metrics import MetricInterface
+from transpile_benchy.metrics.abc_metrics import DoNothing, MetricInterface
+from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 
 
 # write a transformationpass that subs all IGates with U(0, 0, 0)
@@ -58,9 +59,13 @@ class SubsMetric(MetricInterface):
 
     def __init__(self):
         """Initialize the metric."""
-        self.name = "accepted_subs"
-        self.transpiler_pass = None
+        super().__init__(name="accepted_subs")
 
-    def get_pass(self):
-        """Return the pass associated with this metric."""
-        return self.transpiler_pass
+    def _get_pass(self, transpiler: CustomPassManager):
+        """Return the pass associated with this metric.
+
+        NOTE: this is a dummy pass, it does nothing.
+        This is because the metric has been calculated in SabreMS.
+        We are building a metric just so we know to save the result.
+        """
+        return DoNothing()
