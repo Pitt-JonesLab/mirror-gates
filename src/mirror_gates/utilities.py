@@ -2,6 +2,7 @@
 
 import numpy as np
 from qiskit.converters import circuit_to_dag, dag_to_circuit
+from qiskit.dagcircuit import DAGCircuit
 from qiskit.transpiler.basepasses import AnalysisPass, TransformationPass
 from transpile_benchy.metrics.abc_metrics import DoNothing, MetricInterface
 from transpile_benchy.passmanagers.abc_runner import CustomPassManager
@@ -19,6 +20,43 @@ class RemoveIGates(TransformationPass):
         """Run the pass."""
         dag.remove_all_ops_named("id")
         return dag
+
+
+class RemoveSwapGates(TransformationPass):
+    """Remove all swap gates from the circuit.
+
+    If encounter a SWAP, update gates on swapped qubits. I am not sure, but I found some
+    examples by hand where our method performs badly, if given a circuit already
+    containing SWAP gates.
+    """
+
+    def __init__(self):
+        """Initialize the pass."""
+        super().__init__()
+
+    def no_swap_transform(self, dag: DAGCircuit):
+        """Transform DAG, removes all SWAP gates."""
+        new_dag = dag.copy_empty_like()
+
+        # Initialize layout for each node
+        layout = {
+            qarg: qarg for node in dag.topological_op_nodes() for qarg in node.qargs
+        }
+
+        for node in dag.topological_op_nodes():
+            qargs = [layout.get(qarg, qarg) for qarg in node.qargs]
+
+            if node.op.name == "swap":
+                # swap values in layout
+                layout[node.qargs[0]], layout[node.qargs[1]] = qargs[1], qargs[0]
+            else:
+                new_dag.apply_operation_back(node.op, qargs)
+
+        return new_dag
+
+    def run(self, dag):
+        """Run the pass."""
+        return self.no_swap_transform(dag)
 
 
 class SaveCircuitProgress(AnalysisPass):

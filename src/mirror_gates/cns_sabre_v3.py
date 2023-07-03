@@ -53,6 +53,7 @@ class ParallelSabreSwapMS(TransformationPass):
         self.heuristic = heuristic
         self.num_trials = trials
         self.basis_gate = basis_gate or iSwapGate().power(1 / 2)
+        self.depth_pass = MonodromyDepth(basis_gate=self.basis_gate)
         self.parallel = parallel
 
     def run(self, dag: DAGCircuit) -> DAGCircuit:
@@ -86,9 +87,8 @@ class ParallelSabreSwapMS(TransformationPass):
 
     def _serial_run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the pass in serial."""
-        self.dag = (
-            dag  # Store the dag in self so it can be accessed by run_single_trial
-        )
+        # Store the dag in self so it can be accessed by run_single_trial
+        self.dag = dag
         results = [self.run_single_trial(i) for i in range(self.num_trials)]
         best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
         self.property_set["final_layout"] = best_property_set["final_layout"]
@@ -101,10 +101,9 @@ class ParallelSabreSwapMS(TransformationPass):
         # XXX is this unroll still necessary before the consolidation?
         unroller = Unroller(["cx", "u", "swap", "iswap"])
         temp_dag = unroller.run(result)
-        depth_pass = MonodromyDepth(basis_gate=self.basis_gate)
-        depth_pass.property_set = unroller.property_set
-        depth_pass.run(temp_dag)
-        return depth_pass.property_set["monodromy_depth"]
+        self.depth_pass.property_set = unroller.property_set
+        self.depth_pass.run(temp_dag)
+        return self.depth_pass.property_set["monodromy_depth"]
 
 
 class SabreSwapMS(LegacySabreSwap):
@@ -261,9 +260,9 @@ class SabreSwapMS(LegacySabreSwap):
 
         trial_layout = self._current_layout.copy()
 
-        # for node in self._intermediate_layer:
-        # XXX instead of all, just pop the first one
-        for node in [self._intermediate_layer.pop(0)]:
+        for node in self._intermediate_layer:
+            # XXX instead of all, just pop the first one
+            # for node in [self._intermediate_layer.pop(0)]:
             # handles barriers, measure, reset, etc.
             if not isinstance(node.op, Gate):
                 self._apply_gate(
@@ -285,7 +284,9 @@ class SabreSwapMS(LegacySabreSwap):
             )
             self._considered_subs += 1
 
+            # XXX
             if sub_score <= no_sub_score:
+                # if sub_score < no_sub_score:
                 self._total_subs += 1
                 self._apply_gate(
                     self._mapped_dag, node_prime, trial_layout, self._canonical_register

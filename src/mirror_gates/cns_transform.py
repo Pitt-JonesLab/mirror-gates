@@ -1,10 +1,10 @@
 """CNS Transformations for mirror gates."""
 
 import numpy as np
-from monodromy.coverage import gates_to_coverage, target_build_ansatz
+from monodromy.coverage import target_build_ansatz
 from qiskit import QuantumCircuit
 from qiskit.circuit import Instruction
-from qiskit.circuit.library import SwapGate, iSwapGate
+from qiskit.circuit.library import SwapGate
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.extensions import UnitaryGate
 
@@ -30,13 +30,15 @@ iswap_replace.h(1)
 # generic cases without 1Q solutions yet
 
 # TODO generalize to arbitrary input
-coverage = gates_to_coverage(iSwapGate().power(1 / 2))
+# coverage = gates_to_coverage(iSwapGate().power(1 / 2))
+coverage = None
 
 
 # TODO, we already know solutions to CX->iSWAP and iSWAP->CX
 # so we can just use those instead of the general case...?
 def _get_node_cns_ansatz(node: DAGOpNode) -> Instruction:
     """Rather than appending a SWAP, use monodromy to build an ansatz."""
+    raise NotImplementedError
     if len(node.qargs) != 2:
         raise ValueError("Only supports 2Q gates")
     target = UnitaryGate(node.op.to_matrix())

@@ -21,7 +21,12 @@ from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS  # , SabreSwapMS
 from mirror_gates.qiskit.sabre_layout import SabreLayout
 from mirror_gates.sqiswap_equiv import sel  # noqa: F401
-from mirror_gates.utilities import AssignAllParameters, RemoveIGates
+from mirror_gates.utilities import (
+    AssignAllParameters,
+    RemoveIGates,
+    RemoveSwapGates,
+    SaveCircuitProgress,
+)
 
 LAYOUT_TRIALS = 6  # (physical CPU_COUNT)
 SWAP_TRIALS = 6
@@ -56,16 +61,21 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         pm.append(AssignAllParameters())
         pm.append(Unroller(["u", "u3", "cx", "iswap", "swap"]))
         pm.append(OptimizeSwapBeforeMeasure())
+        pm.append(RemoveSwapGates())
         pm.append(RemoveResetInZeroState())
         pm.append(RemoveDiagonalGatesBeforeMeasure())
+        pm.append(SaveCircuitProgress("pre"))
         return pm
 
     def build_post_stage(self) -> PassManager:
         """Post-process the circuit after running."""
         pm = PassManager()
         # need to unroll for consolidate blocks to work
-        pm.append(Unroller(["u", "cx", "iswap", "swap"]))
+        pm.append(Unroller(["u", "cx", "iswap", "swap", "xx_plus_yy"]))
 
+        # random things used during debugging
+        # pm.append(Optimize1qGates(basis=["u", "cx", "iswap", "swap", "xx_plus_yy"]))
+        # pm.append(SaveCircuitProgress('post'))
         # I don't think these are necessary
         # after we already have Qiskit's optimization level 3
         # pm.append(Unroller(["u", "cx", "iswap", "swap"]))
@@ -95,6 +105,7 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
                 coupling_map=self.coupling,
                 optimization_level=3,
                 basis_gates=self.basis_gates,
+                # basis_gates=["u", "cu", "id"],
                 initial_layout=self.property_set.get("post_layout", None),
             )
 
@@ -129,7 +140,10 @@ class SabreMS(CustomLayoutRoutingManager):
     """SabreMS pass manager."""
 
     def __init__(self, coupling, parallel=True, cx_basis=False, logger=None):
-        """Initialize the pass manager."""
+        """Initialize the pass manager.
+
+        Use parallel=False for debugging.
+        """
         self.parallel = parallel
         self.name = "SABREMS"
         super().__init__(coupling, cx_basis=cx_basis, logger=logger)
@@ -153,11 +167,16 @@ class SabreMS(CustomLayoutRoutingManager):
             routing_pass=routing_method,
             layout_trials=LAYOUT_TRIALS,
         )
+
+        # TODO: fix so best layout keeps its routing
+        # that way we don't have to rerun routing
+
         pm.append(layout_method)
         pm.append(FullAncillaAllocation(self.coupling))
         pm.append(EnlargeWithAncilla())
         pm.append(ApplyLayout())
         pm.append(routing_method)
+        pm.append(SaveCircuitProgress("mid"))
         return pm
 
 
