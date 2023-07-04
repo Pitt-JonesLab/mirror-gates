@@ -181,6 +181,12 @@ class SabreLayout(TransformationPass):
             else:
                 seed = self.seed
             rng = np.random.default_rng(seed)
+            
+
+            # Do forward-backward iterations.
+            # NOTE, moved outside the loop to avoid dag->circuit->dag conversion
+            circ = dag_to_circuit(dag)
+            rev_circ = circ.reverse_ops()
 
             for _ in range(self.layout_trials):
                 physical_qubits = rng.choice(
@@ -193,9 +199,6 @@ class SabreLayout(TransformationPass):
 
                 # self.routing_pass.fake_run = True
 
-                # Do forward-backward iterations.
-                circ = dag_to_circuit(dag)
-                rev_circ = circ.reverse_ops()
                 for _ in range(self.max_iterations):
                     for _ in ("forward", "backward"):
                         pm = self._layout_and_route_passmanager(initial_layout)

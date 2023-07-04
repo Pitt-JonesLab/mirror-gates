@@ -28,8 +28,9 @@ from mirror_gates.utilities import (
     SaveCircuitProgress,
 )
 
-LAYOUT_TRIALS = 6  # (physical CPU_COUNT)
-SWAP_TRIALS = 6
+LAYOUT_TRIALS = 1  # (physical CPU_COUNT)
+SWAP_TRIALS = 1
+SEED = 2
 
 
 class CustomLayoutRoutingManager(CustomPassManager, ABC):
@@ -72,7 +73,6 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         pm = PassManager()
         # need to unroll for consolidate blocks to work
         pm.append(Unroller(["u", "cx", "iswap", "swap", "xx_plus_yy"]))
-
         # random things used during debugging
         # pm.append(Optimize1qGates(basis=["u", "cx", "iswap", "swap", "xx_plus_yy"]))
         # pm.append(SaveCircuitProgress('post'))
@@ -87,6 +87,7 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         # pm.append(SaveCircuitProgress())
         # pm.append(Collect2qBlocks())
         # pm.append(ConsolidateBlocks(force_consolidate=True))
+        pm.append(SaveCircuitProgress("post"))
         return pm
 
     class QiskitRunner:
@@ -160,12 +161,14 @@ class SabreMS(CustomLayoutRoutingManager):
             trials=SWAP_TRIALS,
             basis_gate=self.basis_gate,
             parallel=self.parallel,
+            seed=SEED,
         )
 
         layout_method = SabreLayout(
             coupling_map=self.coupling,
             routing_pass=routing_method,
             layout_trials=LAYOUT_TRIALS,
+            seed=SEED,
         )
 
         # TODO: fix so best layout keeps its routing

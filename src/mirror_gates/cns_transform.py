@@ -55,6 +55,7 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
 
     # see NOTE above, I'm not sure if this is true, but staying in CX might make
     # it easier for Qiskit to do commutative cancellations which happen later
+    # XXX only turn this on during debugging
     # if node.name == "cx" or c1c2c3(node.op.to_matrix()) == (0.5, 0, 0):
     #     return DAGOpNode(op=cx_replace.to_instruction(), qargs=node.qargs)
     # elif node.name == "iswap" or c1c2c3(node.op.to_matrix()) == (0.5, 0.5, 0):

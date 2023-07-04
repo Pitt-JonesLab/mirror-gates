@@ -18,7 +18,7 @@ from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler import TranspilerError
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.layout import Layout
-from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks, Unroller
+from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks
 
 from mirror_gates.cns_transform import _get_node_cns
 
@@ -45,6 +45,7 @@ class ParallelSabreSwapMS(TransformationPass):
         trials=6,
         basis_gate=None,
         parallel=True,
+        seed=None,
     ):
         """Initialize the pass."""
         super().__init__()
@@ -55,6 +56,10 @@ class ParallelSabreSwapMS(TransformationPass):
         self.basis_gate = basis_gate or iSwapGate().power(1 / 2)
         self.depth_pass = MonodromyDepth(basis_gate=self.basis_gate)
         self.parallel = parallel
+        # we only use this to generate seeds
+        rng = np.random.default_rng(seed)
+        # generate an array of seeds
+        self.seeds = [rng.integers(0, 2**32 - 1) for _ in range(self.num_trials)]
 
     def run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the pass on `dag`."""
@@ -63,10 +68,10 @@ class ParallelSabreSwapMS(TransformationPass):
         else:
             return self._serial_run(dag)
 
-    def run_single_trial(self, seed):
+    def run_single_trial(self, trial_number):
         """Run a single trial of the pass."""
         trial = SabreSwapMS(self.coupling_map, self.heuristic)
-        trial.seed = seed  # Set the seed for this trial
+        trial.seed = self.seeds[trial_number]
         trial.property_set = self.property_set  # Copy the property set from the parent
         result = trial.run(self.dag)  # Assuming the DAG is stored in self
         score = self.calculate_score(result)  # You need to implement this
@@ -74,9 +79,8 @@ class ParallelSabreSwapMS(TransformationPass):
 
     def _parallel_run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the pass in parallel."""
-        self.dag = (
-            dag  # Store the dag in self so it can be accessed by run_single_trial
-        )
+        # Store the dag in self so it can be accessed by run_single_trial
+        self.dag = dag
         with mp.Pool() as pool:
             results = pool.map(self.run_single_trial, range(self.num_trials))
         best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
@@ -99,10 +103,10 @@ class ParallelSabreSwapMS(TransformationPass):
     def calculate_score(self, result: DAGCircuit) -> float:
         """Calculate the score of a result."""
         # XXX is this unroll still necessary before the consolidation?
-        unroller = Unroller(["cx", "u", "swap", "iswap"])
-        temp_dag = unroller.run(result)
-        self.depth_pass.property_set = unroller.property_set
-        self.depth_pass.run(temp_dag)
+        # unroller = Unroller(["cx", "iswap", "u", "swap"])
+        # temp_dag = unroller.run(result)
+        # self.depth_pass.property_set = unroller.property_set
+        self.depth_pass.run(result)
         return self.depth_pass.property_set["monodromy_depth"]
 
 
@@ -156,6 +160,13 @@ class SabreSwapMS(LegacySabreSwap):
         self._total_subs = 0
         self._considered_subs = 0
 
+        # NOTE 'undo' swaps are used so that we can preserve the layout
+        # crucial: sabrelayout assumes end of forwards matches beginning of backwards
+        # we broke this assumption by inserting virtual swaps
+        # undo_swaps is a list of tuples that require SWAPs at very end
+        # however, needs to be dynamic with changes to the layout
+        self.undo_swaps = []
+
         self.rng = np.random.default_rng(self.seed)
 
     def _handle_no_progress(self, dag):
@@ -204,7 +215,6 @@ class SabreSwapMS(LegacySabreSwap):
         self._front_layer = new_front_layer
 
         # check for if stuck
-
         # If no gates can be executed, add greedy swaps
         if (
             not execute_gate_list
@@ -270,27 +280,32 @@ class SabreSwapMS(LegacySabreSwap):
                 )
                 continue
 
-            # use lookahead because these swaps are virtual
+            # use lookahead (instead of decay) because these swaps are virtual
+            strategy = "lookahead"
             # they have no cost related to parallelism
             no_sub_score = self._score_heuristic(
-                "basic", self._front_layer, extended_set, trial_layout
+                strategy, self._front_layer, extended_set, trial_layout
             )
 
             # compare against the sub
             node_prime = _get_node_cns(node)
             trial_layout.swap(*node_prime.qargs)
             sub_score = self._score_heuristic(
-                "basic", self._front_layer, extended_set, trial_layout
+                strategy, self._front_layer, extended_set, trial_layout
             )
             self._considered_subs += 1
 
-            # XXX
-            if sub_score <= no_sub_score:
-                # if sub_score < no_sub_score:
+            # XXX <= seems to do worse but not sure why
+            if sub_score < no_sub_score:
+                # if sub_score <= no_sub_score:
                 self._total_subs += 1
                 self._apply_gate(
                     self._mapped_dag, node_prime, trial_layout, self._canonical_register
                 )
+
+                # add to undo_swaps stack
+                self.undo_swaps.insert(0, node_prime.qargs)
+
             else:
                 # undo the changes to trial_layout
                 trial_layout.swap(*node_prime.qargs)
@@ -371,9 +386,20 @@ class SabreSwapMS(LegacySabreSwap):
                     self._canonical_register,
                 )
             self._intermediate_layer = []
-
         # assert front layer and intermediate layer are empty'
         assert not self._front_layer and not self._intermediate_layer
+
+        # Process undo swaps
+        # pop from front of stack
+        # convert qargs to indices using current_layout
+        # while self.undo_swaps:
+        #     swap = self.undo_swaps.pop(0)
+        #     self._apply_gate(self._mapped_dag,
+        #                      DAGOpNode(op=SwapGate(), qargs=swap),
+        #                      self._current_layout,
+        #                      self._canonical_register)
+        #     # update current_layout
+        #     self._current_layout.swap(*swap)
 
         # Set final layout and return the mapped dag
         self.property_set["final_layout"] = self._current_layout
