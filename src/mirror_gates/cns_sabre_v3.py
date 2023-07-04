@@ -7,6 +7,7 @@ and can verify the correctness of the CNS sub by comparing the output of this pa
 the original circuit. Also, I hope to improve general readability and modularity.
 """
 
+import copy
 import multiprocessing as mp
 
 import numpy as np
@@ -56,6 +57,7 @@ class ParallelSabreSwapMS(TransformationPass):
         self.basis_gate = basis_gate or iSwapGate().power(1 / 2)
         self.depth_pass = MonodromyDepth(basis_gate=self.basis_gate)
         self.parallel = parallel
+        self.fake_run = False
         # we only use this to generate seeds
         rng = np.random.default_rng(seed)
         # generate an array of seeds
@@ -64,25 +66,16 @@ class ParallelSabreSwapMS(TransformationPass):
     def run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the pass on `dag`."""
         if self.parallel:
-            return self._parallel_run(dag)
+            mapped_dag = self._parallel_run(dag)
         else:
-            return self._serial_run(dag)
-
-    def run_single_trial(self, trial_number):
-        """Run a single trial of the pass."""
-        trial = SabreSwapMS(self.coupling_map, self.heuristic)
-        trial.seed = self.seeds[trial_number]
-        trial.property_set = self.property_set  # Copy the property set from the parent
-        result = trial.run(self.dag)  # Assuming the DAG is stored in self
-        score = self.calculate_score(result)  # You need to implement this
-        return score, result, trial.property_set
+            mapped_dag = self._serial_run(dag)
+        return mapped_dag if not self.fake_run else dag
 
     def _parallel_run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the pass in parallel."""
-        # Store the dag in self so it can be accessed by run_single_trial
-        self.dag = dag
+        self.dag = dag  # Store the dag can be accessed by run_single_trial
         with mp.Pool() as pool:
-            results = pool.map(self.run_single_trial, range(self.num_trials))
+            results = pool.map(self._run_single_trial, range(self.num_trials))
         best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
         self.property_set["final_layout"] = best_property_set["final_layout"]
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
@@ -91,16 +84,23 @@ class ParallelSabreSwapMS(TransformationPass):
 
     def _serial_run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the pass in serial."""
-        # Store the dag in self so it can be accessed by run_single_trial
-        self.dag = dag
-        results = [self.run_single_trial(i) for i in range(self.num_trials)]
+        self.dag = dag  # Store the dag can be accessed by run_single_trial
+        results = [self._run_single_trial(i) for i in range(self.num_trials)]
         best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
         self.property_set["final_layout"] = best_property_set["final_layout"]
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
         self.property_set["best_score"] = best_score
         return best_result
 
-    def calculate_score(self, result: DAGCircuit) -> float:
+    def _run_single_trial(self, trial_number):
+        """Run a single trial of the pass."""
+        trial = SabreSwapMS(self.coupling_map, self.heuristic, self.property_set)
+        trial.seed = self.seeds[trial_number]
+        result = trial.run(self.dag)
+        score = self._calculate_score(result)
+        return score, result, trial.property_set
+
+    def _calculate_score(self, result: DAGCircuit) -> float:
         """Calculate the score of a result."""
         # XXX is this unroll still necessary before the consolidation?
         # unroller = Unroller(["cx", "iswap", "u", "swap"])
@@ -113,8 +113,10 @@ class ParallelSabreSwapMS(TransformationPass):
 class SabreSwapMS(LegacySabreSwap):
     """V3 Rewrite of CNS SABRE Implementation."""
 
-    def __init__(self, coupling_map, heuristic="lookahead"):
+    def __init__(self, coupling_map, property_set, heuristic="lookahead"):
         """Initialize the pass."""
+        # deepcopy for safety
+        self.property_set = copy.deepcopy(property_set)
         super().__init__(coupling_map, heuristic=heuristic)
         # want to force only 2Q gates visible to the algorithm,
         # makes much easier if don't have to deal with 1Q gates as successors
@@ -268,6 +270,7 @@ class SabreSwapMS(LegacySabreSwap):
         """
         extended_set = self._obtain_extended_set(dag, self._front_layer)
 
+        # FIXME, can be removed since fixing current_layout before returning
         trial_layout = self._current_layout.copy()
 
         for node in self._intermediate_layer:
@@ -398,7 +401,7 @@ class SabreSwapMS(LegacySabreSwap):
         #                      DAGOpNode(op=SwapGate(), qargs=swap),
         #                      self._current_layout,
         #                      self._canonical_register)
-        #     # update current_layout
+        #     update current_layout
         #     self._current_layout.swap(*swap)
 
         # Set final layout and return the mapped dag

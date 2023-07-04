@@ -28,9 +28,9 @@ from mirror_gates.utilities import (
     SaveCircuitProgress,
 )
 
-LAYOUT_TRIALS = 1  # (physical CPU_COUNT)
-SWAP_TRIALS = 1
-SEED = 2
+LAYOUT_TRIALS = 6  # (physical CPU_COUNT)
+SWAP_TRIALS = 6
+SEED = 0
 
 
 class CustomLayoutRoutingManager(CustomPassManager, ABC):
@@ -173,7 +173,6 @@ class SabreMS(CustomLayoutRoutingManager):
 
         # TODO: fix so best layout keeps its routing
         # that way we don't have to rerun routing
-
         pm.append(layout_method)
         pm.append(FullAncillaAllocation(self.coupling))
         pm.append(EnlargeWithAncilla())
