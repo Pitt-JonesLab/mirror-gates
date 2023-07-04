@@ -8,6 +8,8 @@ from qiskit.circuit.library import SwapGate
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.extensions import UnitaryGate
 
+from mirror_gates.utilities import NoCheckUnitary
+
 # Global CNS Transformations
 # cx -> iswap
 cx_replace = QuantumCircuit(2, 0, name="iswap_prime")
@@ -55,6 +57,7 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
 
     # see NOTE above, I'm not sure if this is true, but staying in CX might make
     # it easier for Qiskit to do commutative cancellations which happen later
+
     # XXX only turn this on during debugging
     # if node.name == "cx" or c1c2c3(node.op.to_matrix()) == (0.5, 0, 0):
     #     return DAGOpNode(op=cx_replace.to_instruction(), qargs=node.qargs)
@@ -62,10 +65,15 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
     #     return DAGOpNode(op=iswap_replace.to_instruction(), qargs=node.qargs)
 
     else:
-        temp_circuit = QuantumCircuit(2)
-        temp_circuit.append(node.op, [0, 1])
-        temp_circuit.swap(0, 1)
-        return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
+        # temp_circuit = QuantumCircuit(2)
+        # temp_circuit.append(node.op, [0, 1])
+        # temp_circuit.swap(0, 1)
+        # return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
+        new_op = SwapGate().to_matrix() @ node.op.to_matrix()
+
+        # NOTE, the UnitaryGate() constructor is a bit expensive
+        # return DAGOpNode(op=UnitaryGate(new_op), qargs=node.qargs)
+        return DAGOpNode(op=NoCheckUnitary(new_op), qargs=node.qargs)
 
 
 def cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircuit:

@@ -102,7 +102,8 @@ class ParallelSabreSwapMS(TransformationPass):
 
     def _calculate_score(self, result: DAGCircuit) -> float:
         """Calculate the score of a result."""
-        # XXX is this unroll still necessary before the consolidation?
+        # this unroll is  unnecessary before the consolidation
+        # assuming consolidation is done before SabreSwapMS
         # unroller = Unroller(["cx", "iswap", "u", "swap"])
         # temp_dag = unroller.run(result)
         # self.depth_pass.property_set = unroller.property_set
@@ -161,13 +162,6 @@ class SabreSwapMS(LegacySabreSwap):
         self._intermediate_layer = []
         self._total_subs = 0
         self._considered_subs = 0
-
-        # NOTE 'undo' swaps are used so that we can preserve the layout
-        # crucial: sabrelayout assumes end of forwards matches beginning of backwards
-        # we broke this assumption by inserting virtual swaps
-        # undo_swaps is a list of tuples that require SWAPs at very end
-        # however, needs to be dynamic with changes to the layout
-        self.undo_swaps = []
 
         self.rng = np.random.default_rng(self.seed)
 
@@ -268,10 +262,8 @@ class SabreSwapMS(LegacySabreSwap):
         rewrite we know only 2Q gates, and no dependencies in the intermediate layer.
         means we can just eval the cost without needing to do any messy bookkeeping.
         """
-        extended_set = self._obtain_extended_set(dag, self._front_layer)
-
-        # FIXME, can be removed since fixing current_layout before returning
-        trial_layout = self._current_layout.copy()
+        if self._extended_set is None:
+            extended_set = self._obtain_extended_set(dag, self._front_layer)
 
         for node in self._intermediate_layer:
             # XXX instead of all, just pop the first one
@@ -279,7 +271,10 @@ class SabreSwapMS(LegacySabreSwap):
             # handles barriers, measure, reset, etc.
             if not isinstance(node.op, Gate):
                 self._apply_gate(
-                    self._mapped_dag, node, trial_layout, self._canonical_register
+                    self._mapped_dag,
+                    node,
+                    self._current_layout,
+                    self._canonical_register,
                 )
                 continue
 
@@ -287,14 +282,15 @@ class SabreSwapMS(LegacySabreSwap):
             strategy = "lookahead"
             # they have no cost related to parallelism
             no_sub_score = self._score_heuristic(
-                strategy, self._front_layer, extended_set, trial_layout
+                strategy, self._front_layer, extended_set, self._current_layout
             )
 
             # compare against the sub
             node_prime = _get_node_cns(node)
-            trial_layout.swap(*node_prime.qargs)
+            self._current_layout.swap(*node.qargs)
+
             sub_score = self._score_heuristic(
-                strategy, self._front_layer, extended_set, trial_layout
+                strategy, self._front_layer, extended_set, self._current_layout
             )
             self._considered_subs += 1
 
@@ -303,17 +299,20 @@ class SabreSwapMS(LegacySabreSwap):
                 # if sub_score <= no_sub_score:
                 self._total_subs += 1
                 self._apply_gate(
-                    self._mapped_dag, node_prime, trial_layout, self._canonical_register
+                    self._mapped_dag,
+                    node_prime,
+                    self._current_layout,
+                    self._canonical_register,
                 )
-
-                # add to undo_swaps stack
-                self.undo_swaps.insert(0, node_prime.qargs)
 
             else:
                 # undo the changes to trial_layout
-                trial_layout.swap(*node_prime.qargs)
+                self._current_layout.swap(*node.qargs)
                 self._apply_gate(
-                    self._mapped_dag, node, trial_layout, self._canonical_register
+                    self._mapped_dag,
+                    node,
+                    self._current_layout,
+                    self._canonical_register,
                 )
 
             # update the intermediate required predecessors
@@ -321,7 +320,6 @@ class SabreSwapMS(LegacySabreSwap):
                 self._intermediate_required_predecessors[successor] -= 1
 
         self._intermediate_layer = []
-        self._current_layout = trial_layout
         return 1
 
     def _find_and_insert_best_swap(self, dag):
@@ -369,6 +367,7 @@ class SabreSwapMS(LegacySabreSwap):
             # if true, repeat until no more gates can be processed
             if self._process_front_layer(dag):
                 # XXX, this continue may not be necessary
+                # keep for safety :)
                 continue
 
             # If there are gates in the intermediate layer, process them
@@ -391,18 +390,6 @@ class SabreSwapMS(LegacySabreSwap):
             self._intermediate_layer = []
         # assert front layer and intermediate layer are empty'
         assert not self._front_layer and not self._intermediate_layer
-
-        # Process undo swaps
-        # pop from front of stack
-        # convert qargs to indices using current_layout
-        # while self.undo_swaps:
-        #     swap = self.undo_swaps.pop(0)
-        #     self._apply_gate(self._mapped_dag,
-        #                      DAGOpNode(op=SwapGate(), qargs=swap),
-        #                      self._current_layout,
-        #                      self._canonical_register)
-        #     update current_layout
-        #     self._current_layout.swap(*swap)
 
         # Set final layout and return the mapped dag
         self.property_set["final_layout"] = self._current_layout

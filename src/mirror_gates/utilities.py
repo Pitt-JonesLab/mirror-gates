@@ -1,11 +1,36 @@
 """Utilities for transpiler passes."""
 
 import numpy as np
+from qiskit.circuit import Gate
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGCircuit
+from qiskit.extensions import UnitaryGate
 from qiskit.transpiler.basepasses import AnalysisPass, TransformationPass
 from transpile_benchy.metrics.abc_metrics import DoNothing, MetricInterface
 from transpile_benchy.passmanagers.abc_runner import CustomPassManager
+
+# fast construction UnitaryGate
+
+
+class NoCheckUnitary(UnitaryGate, Gate):
+    """Class quantum gates specified by a unitary matrix.
+
+    Building a UnitaryGate calls an expensive is_unitary_matrix check. This class skips
+    that check if we are manually constructing the gate, and that we already know it is
+    unitary.
+    """
+
+    def __init__(self, data: np.ndarray, label=None):
+        """Create a gate from a numeric unitary matrix.
+
+        Args:
+            data (np.ndarray): unitary operator.
+        """
+        assert isinstance(data, np.ndarray)
+        input_dim, output_dim = data.shape
+        num_qubits = int(np.log2(input_dim))
+        # Store instruction params
+        Gate.__init__(self, "unitary", num_qubits, [data], label=label)
 
 
 # write a transformationpass that subs all IGates with U(0, 0, 0)
