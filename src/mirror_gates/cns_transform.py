@@ -73,7 +73,7 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
 
         # NOTE, the UnitaryGate() constructor is a bit expensive
         # return DAGOpNode(op=UnitaryGate(new_op), qargs=node.qargs)
-        return DAGOpNode(op=NoCheckUnitary(new_op), qargs=node.qargs)
+        return DAGOpNode(op=NoCheckUnitary(new_op, label="u+swap"), qargs=node.qargs)
 
 
 def cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircuit:

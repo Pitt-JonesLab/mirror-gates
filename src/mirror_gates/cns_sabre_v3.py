@@ -19,7 +19,6 @@ from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.transpiler import TranspilerError
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.layout import Layout
-from qiskit.transpiler.passes import Collect2qBlocks, ConsolidateBlocks
 
 from mirror_gates.cns_transform import _get_node_cns
 
@@ -50,7 +49,8 @@ class ParallelSabreSwapMS(TransformationPass):
     ):
         """Initialize the pass."""
         super().__init__()
-        self.requires = [Collect2qBlocks(), ConsolidateBlocks(force_consolidate=True)]
+        # self.requires = [FastConsolidateBlocks()]
+        # assume pass manager already does this
         self.coupling_map = coupling_map
         self.heuristic = heuristic
         self.num_trials = trials
@@ -121,7 +121,8 @@ class SabreSwapMS(LegacySabreSwap):
         super().__init__(coupling_map, heuristic=heuristic)
         # want to force only 2Q gates visible to the algorithm,
         # makes much easier if don't have to deal with 1Q gates as successors
-        self.requires = [Collect2qBlocks(), ConsolidateBlocks(force_consolidate=True)]
+        # requires is satisfied by parent class
+        # self.requires = [Collect2qBlocks(), ConsolidateBlocks(force_consolidate=True)]
 
     def _initialize_variables(self, dag):
         """Initialize variables for the algorithm."""

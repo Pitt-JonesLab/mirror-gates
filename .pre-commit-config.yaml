@@ -3,7 +3,7 @@ exclude: ".*deprecated/|.*qiskit/"
 
 repos:
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: "v0.0.275"
+    rev: "v0.0.277"
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]

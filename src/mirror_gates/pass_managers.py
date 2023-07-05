@@ -13,8 +13,7 @@ from qiskit.transpiler.passes import (
     RemoveBarriers,
     RemoveDiagonalGatesBeforeMeasure,
     RemoveFinalMeasurements,
-    RemoveResetInZeroState,
-    Unroller,
+    Unroll3qOrMore,
 )
 from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 
@@ -23,6 +22,7 @@ from mirror_gates.qiskit.sabre_layout import SabreLayout
 from mirror_gates.sqiswap_equiv import sel  # noqa: F401
 from mirror_gates.utilities import (
     AssignAllParameters,
+    FastConsolidateBlocks,
     RemoveIGates,
     RemoveSwapGates,
     SaveCircuitProgress,
@@ -30,7 +30,7 @@ from mirror_gates.utilities import (
 
 LAYOUT_TRIALS = 6  # (physical CPU_COUNT)
 SWAP_TRIALS = 6
-SEED = 0
+SEED = 42
 
 
 class CustomLayoutRoutingManager(CustomPassManager, ABC):
@@ -56,42 +56,36 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
     def build_pre_stage(self) -> PassManager:
         """Pre-process the circuit before running."""
         pm = PassManager()
-        pm.append(RemoveIGates())
         pm.append(RemoveBarriers())
-        pm.append(RemoveFinalMeasurements())
         pm.append(AssignAllParameters())
-        pm.append(Unroller(["u", "u3", "cx", "iswap", "swap"]))
+        pm.append(Unroll3qOrMore())
         pm.append(OptimizeSwapBeforeMeasure())
+        pm.append(RemoveIGates())
         pm.append(RemoveSwapGates())
-        pm.append(RemoveResetInZeroState())
         pm.append(RemoveDiagonalGatesBeforeMeasure())
+        pm.append(RemoveFinalMeasurements())
+        ##
         pm.append(SaveCircuitProgress("pre"))
+        pm.append(FastConsolidateBlocks())
         return pm
 
     def build_post_stage(self) -> PassManager:
         """Post-process the circuit after running."""
         pm = PassManager()
-        # need to unroll for consolidate blocks to work
-        pm.append(Unroller(["u", "cx", "iswap", "swap", "xx_plus_yy"]))
-        # random things used during debugging
-        # pm.append(Optimize1qGates(basis=["u", "cx", "iswap", "swap", "xx_plus_yy"]))
-        # pm.append(SaveCircuitProgress('post'))
-        # I don't think these are necessary
-        # after we already have Qiskit's optimization level 3
-        # pm.append(Unroller(["u", "cx", "iswap", "swap"]))
-        # pm.append(CommutativeCancellation())
-        # pm.append(RemoveResetInZeroState())
-        # pm.append(OptimizeSwapBeforeMeasure())
-        # pm.append(RemoveDiagonalGatesBeforeMeasure())
-        # pm.append(Optimize1qGates(basis=["u", "cx", "iswap", "swap"]))
-        # pm.append(SaveCircuitProgress())
-        # pm.append(Collect2qBlocks())
-        # pm.append(ConsolidateBlocks(force_consolidate=True))
+        # consolidate before metric depth pass
+        # NOTE this is required because of the QiskitRunner unrolling
+        pm.append(FastConsolidateBlocks())
         pm.append(SaveCircuitProgress("post"))
         return pm
 
     class QiskitRunner:
-        """Run stock transpiler on the circuit."""
+        """Run stock transpiler on the circuit.
+
+        This is used to see if there exist any optimizations or cancellations.
+        NOTE: Qiskit here won't know that the virtual-swaps are free,
+        could be a problem - but we are forcing the input and those unitaries
+        have already been coded into the DAGOpNodes - so it can't get rid of them.
+        """
 
         def __init__(self, coupling, basis_gates):
             """Initialize the runner."""
@@ -105,8 +99,8 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
                 circuit,
                 coupling_map=self.coupling,
                 optimization_level=3,
-                basis_gates=self.basis_gates,
-                # basis_gates=["u", "cu", "id"],
+                # basis_gates=self.basis_gates,
+                basis_gates=["u", "cx", "swap", "id"],
                 initial_layout=self.property_set.get("post_layout", None),
             )
 
@@ -155,7 +149,6 @@ class SabreMS(CustomLayoutRoutingManager):
 
         # # single-shot
         # routing_method = SabreSwapMS(coupling_map=self.coupling)
-
         routing_method = ParallelSabreSwapMS(
             coupling_map=self.coupling,
             trials=SWAP_TRIALS,

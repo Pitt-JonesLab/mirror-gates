@@ -185,7 +185,7 @@ class SabreLayout(TransformationPass):
 
             # Do forward-backward iterations.
             # NOTE, moved outside the loop to avoid dag->circuit->dag conversion
-            self.routing_pass.fake_run = False # set to False when debugging
+            self.routing_pass.fake_run = True # set to False when debugging
             circ = dag_to_circuit(dag)
             rev_circ = circ.reverse_ops()
             
