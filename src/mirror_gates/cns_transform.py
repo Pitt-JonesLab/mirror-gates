@@ -8,7 +8,7 @@ from qiskit.circuit.library import SwapGate
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.extensions import UnitaryGate
 
-from mirror_gates.utilities import NoCheckUnitary
+from mirror_gates.utilities import FastConsolidateBlocks, NoCheckUnitary
 
 # Global CNS Transformations
 # cx -> iswap
@@ -70,10 +70,18 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
         # temp_circuit.swap(0, 1)
         # return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
         new_op = SwapGate().to_matrix() @ node.op.to_matrix()
+        new_unitary = NoCheckUnitary(new_op, label="u+swap")
+
+        # TODO
+        # from monodromy.coordinates import mirror_monodromy_coordinate
+        # _monodromy_coord = mirror_monodromy_coordinate(node.op._monodromy_coord)
+        new_unitary._monodromy_coord = FastConsolidateBlocks.unitary_to_coordinate(
+            new_unitary
+        )
 
         # NOTE, the UnitaryGate() constructor is a bit expensive
         # return DAGOpNode(op=UnitaryGate(new_op), qargs=node.qargs)
-        return DAGOpNode(op=NoCheckUnitary(new_op, label="u+swap"), qargs=node.qargs)
+        return DAGOpNode(op=new_unitary, qargs=node.qargs)
 
 
 def cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircuit:

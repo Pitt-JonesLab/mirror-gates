@@ -64,9 +64,7 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         pm.append(RemoveSwapGates())
         pm.append(RemoveDiagonalGatesBeforeMeasure())
         pm.append(RemoveFinalMeasurements())
-        ##
         pm.append(SaveCircuitProgress("pre"))
-        pm.append(FastConsolidateBlocks())
         return pm
 
     def build_post_stage(self) -> PassManager:
@@ -75,7 +73,7 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         pm.append(SaveCircuitProgress("post"))
         # consolidate before metric depth pass
         # NOTE this is required because of the QiskitRunner unrolling
-        pm.append(FastConsolidateBlocks())
+        pm.append(FastConsolidateBlocks(coord_caching=True))
         return pm
 
     class QiskitRunner:
