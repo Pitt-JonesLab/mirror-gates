@@ -2,10 +2,12 @@
 
 import numpy as np
 from qiskit.circuit import Gate
+from qiskit.circuit.exceptions import CircuitError
 from qiskit.circuit.library import SwapGate
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGCircuit
 from qiskit.extensions import UnitaryGate
+from qiskit.quantum_info import Operator
 from qiskit.transpiler.basepasses import AnalysisPass, TransformationPass
 from qiskit.transpiler.passes import Collect2qBlocks
 from transpile_benchy.metrics.abc_metrics import DoNothing, MetricInterface
@@ -36,9 +38,18 @@ class NoCheckUnitary(UnitaryGate, Gate):
         # Store instruction params
         Gate.__init__(self, "unitary", num_qubits, [data], label=label)
 
+        # TODO cached_property?
+        self._monodromy_coord = None
+
 
 class FastConsolidateBlocks(TransformationPass):
-    """Fast ConsolidateBlocks pass."""
+    """Fast ConsolidateBlocks pass.
+
+    # TODO? Annotates DAGOpNodes with monodromy coordinates with caching. While passing
+    through operators here, we have the ability to save time, because following
+    consolidation, looking up OpNodes would be cache misses if differ by exterior 1Q
+    gates.
+    """
 
     def __init__(self):
         """Initialize the pass."""
@@ -79,7 +90,10 @@ class FastConsolidateBlocks(TransformationPass):
             operator = np.eye(4)  # 2-qubit operator
 
             for gate in block:
-                gate_operator = gate.op.to_matrix()
+                try:
+                    gate_operator = gate.op.to_matrix()
+                except CircuitError:
+                    gate_operator = Operator(gate.op).data
 
                 if len(gate.qargs) == 1:  # 1-qubit gate
                     idx = qubit_map[gate.qargs[0]]

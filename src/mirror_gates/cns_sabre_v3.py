@@ -53,7 +53,11 @@ class ParallelSabreSwapMS(TransformationPass):
         # assume pass manager already does this
         self.coupling_map = coupling_map
         self.heuristic = heuristic
+
         self.num_trials = trials
+        if self.num_trials < 3:
+            raise TranspilerError("Use at least 3 trials for SabreSwapMS.")
+
         self.basis_gate = basis_gate or iSwapGate().power(1 / 2)
         self.depth_pass = MonodromyDepth(basis_gate=self.basis_gate)
         self.parallel = parallel
@@ -94,7 +98,12 @@ class ParallelSabreSwapMS(TransformationPass):
 
     def _run_single_trial(self, trial_number):
         """Run a single trial of the pass."""
-        trial = SabreSwapMS(self.coupling_map, self.heuristic, self.property_set)
+        trial = SabreSwapMS(
+            self.coupling_map,
+            self.heuristic,
+            self.property_set,
+            aggression=trial_number,
+        )
         trial.seed = self.seeds[trial_number]
         result = trial.run(self.dag)
         score = self._calculate_score(result)
@@ -114,9 +123,17 @@ class ParallelSabreSwapMS(TransformationPass):
 class SabreSwapMS(LegacySabreSwap):
     """V3 Rewrite of CNS SABRE Implementation."""
 
-    def __init__(self, coupling_map, property_set, heuristic="lookahead"):
-        """Initialize the pass."""
+    def __init__(self, coupling_map, property_set, heuristic="lookahead", aggression=2):
+        """Initialize the pass.
+
+        Args:
+            aggression (int): How aggressively to search for virtual swaps.
+                0: No virtual-swaps are accepted.
+                1: Only virtual-swaps that improve the cost.
+                2+: Virtual-swaps that improve or do not change the cost.
+        """
         # deepcopy for safety
+        self.aggression = aggression
         self.property_set = copy.deepcopy(property_set)
         super().__init__(coupling_map, heuristic=heuristic)
         # want to force only 2Q gates visible to the algorithm,
@@ -295,9 +312,9 @@ class SabreSwapMS(LegacySabreSwap):
             )
             self._considered_subs += 1
 
-            # XXX <= seems to do worse but not sure why
-            if sub_score < no_sub_score:
-                # if sub_score <= no_sub_score:
+            if (self.aggression == 1 and sub_score < no_sub_score) or (
+                self.aggression >= 2 and sub_score <= no_sub_score
+            ):
                 self._total_subs += 1
                 self._apply_gate(
                     self._mapped_dag,

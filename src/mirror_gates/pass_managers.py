@@ -72,10 +72,10 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
     def build_post_stage(self) -> PassManager:
         """Post-process the circuit after running."""
         pm = PassManager()
+        pm.append(SaveCircuitProgress("post"))
         # consolidate before metric depth pass
         # NOTE this is required because of the QiskitRunner unrolling
         pm.append(FastConsolidateBlocks())
-        pm.append(SaveCircuitProgress("post"))
         return pm
 
     class QiskitRunner:
