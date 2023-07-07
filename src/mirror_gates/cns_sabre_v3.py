@@ -98,11 +98,16 @@ class ParallelSabreSwapMS(TransformationPass):
 
     def _run_single_trial(self, trial_number):
         """Run a single trial of the pass."""
+        aggression = 2  # Default aggression level
+        if trial_number < self.num_trials // 6:
+            aggression = 0
+        elif trial_number < 2 * (self.num_trials // 6):
+            aggression = 1
         trial = SabreSwapMS(
             self.coupling_map,
             self.heuristic,
             self.property_set,
-            aggression=trial_number,
+            aggression=aggression,
         )
         trial.seed = self.seeds[trial_number]
         result = trial.run(self.dag)
