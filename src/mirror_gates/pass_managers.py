@@ -23,13 +23,15 @@ from mirror_gates.sqiswap_equiv import sel  # noqa: F401
 from mirror_gates.utilities import (
     AssignAllParameters,
     FastConsolidateBlocks,
+    RemoveAllMeasurements,
     RemoveIGates,
     RemoveSwapGates,
     SaveCircuitProgress,
 )
 
-LAYOUT_TRIALS = 6  # (physical CPU_COUNT)
-SWAP_TRIALS = 6
+# 20,20 is what Qiskit uses for level 3
+LAYOUT_TRIALS = 20  # (physical CPU_COUNT)
+SWAP_TRIALS = 20
 SEED = 42
 
 
@@ -64,7 +66,12 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         pm.append(RemoveSwapGates())
         pm.append(RemoveDiagonalGatesBeforeMeasure())
         pm.append(RemoveFinalMeasurements())
+        # We don't have classical bit registers implemented yet
+        pm.append(RemoveAllMeasurements())  # hacky cleaning
         pm.append(SaveCircuitProgress("pre"))
+        # NOTE, could consolidate in main stage .requires
+        # but if we do it here we won't have to repeat for each restart loop
+        pm.append(FastConsolidateBlocks(coord_caching=True))
         return pm
 
     def build_post_stage(self) -> PassManager:

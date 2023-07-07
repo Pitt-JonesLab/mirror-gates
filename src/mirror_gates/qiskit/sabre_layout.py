@@ -79,7 +79,7 @@ class SabreLayout(TransformationPass):
         coupling_map,
         routing_pass=None,
         seed=None,
-        max_iterations=3,
+        max_iterations=4,
         swap_trials=None,
         layout_trials=None,
         skip_routing=False,

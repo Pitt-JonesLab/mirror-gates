@@ -26,7 +26,6 @@ from mirror_gates.cns_transform import _get_node_cns
 # we have in deprecated/ the original python implementation we modified in V2.
 # might be useful to grab some functions from it
 from mirror_gates.qiskit.sabre_swap import SabreSwap as LegacySabreSwap
-from mirror_gates.utilities import FastConsolidateBlocks
 
 EXTENDED_SET_SIZE = (
     20  # Size of lookahead window. TODO: set dynamically to len(current_layout)
@@ -50,7 +49,8 @@ class ParallelSabreSwapMS(TransformationPass):
     ):
         """Initialize the pass."""
         super().__init__()
-        self.requires = [FastConsolidateBlocks(coord_caching=True)]
+        # NOTE, normally is required but we make sure is in the pre-stage
+        # self.requires = [FastConsolidateBlocks(coord_caching=True)]
         self.coupling_map = coupling_map
         self.heuristic = heuristic
 

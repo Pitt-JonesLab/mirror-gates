@@ -226,10 +226,6 @@ class RemoveSwapGates(TransformationPass):
     containing SWAP gates.
     """
 
-    def __init__(self):
-        """Initialize the pass."""
-        super().__init__()
-
     def no_swap_transform(self, dag: DAGCircuit):
         """Transform DAG, removes all SWAP gates."""
         new_dag = dag.copy_empty_like()
@@ -274,10 +270,6 @@ class SaveCircuitProgress(AnalysisPass):
 class AssignAllParameters(TransformationPass):
     """Assigns all parameters to a random value."""
 
-    def __init__(self):
-        """Initialize the pass."""
-        super().__init__()
-
     def run(self, dag):
         """Run the pass."""
         # for every parameter, assign a random value [0, 2pi]
@@ -286,6 +278,15 @@ class AssignAllParameters(TransformationPass):
         for param in qc.parameters:
             qc.assign_parameters({param: np.random.uniform(0, 2 * np.pi)}, inplace=True)
         return circuit_to_dag(qc)
+
+
+class RemoveAllMeasurements(TransformationPass):
+    """Remove all measurements from the circuit."""
+
+    def run(self, dag):
+        """Run the pass."""
+        dag.remove_all_ops_named("measure")
+        return dag
 
 
 class SubsMetric(MetricInterface):
