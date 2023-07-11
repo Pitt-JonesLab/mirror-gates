@@ -14,7 +14,9 @@ from qiskit.transpiler.passes import (
     RemoveDiagonalGatesBeforeMeasure,
     RemoveFinalMeasurements,
     Unroll3qOrMore,
+    VF2Layout,
 )
+from qiskit.transpiler.passes.layout.vf2_layout import VF2LayoutStopReason
 from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 
 from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS  # , SabreSwapMS
@@ -55,9 +57,10 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
             self.basis_gates = ["u", "xx_plus_yy", "id"]
         super().__init__(name=self.name)
 
-    def build_pre_stage(self) -> PassManager:
+    def build_pre_stage(self, **kwargs) -> PassManager:
         """Pre-process the circuit before running."""
         pm = PassManager()
+        pm.property_set = kwargs.get("property_set", {})
         pm.append(RemoveBarriers())
         pm.append(AssignAllParameters())
         pm.append(Unroll3qOrMore())
@@ -72,11 +75,15 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         # NOTE, could consolidate in main stage .requires
         # but if we do it here we won't have to repeat for each restart loop
         pm.append(FastConsolidateBlocks(coord_caching=True))
+
+        # try VF2Layout
+        pm.append(VF2Layout(coupling_map=self.coupling, seed=SEED, call_limit=int(3e7)))
         return pm
 
-    def build_post_stage(self) -> PassManager:
+    def build_post_stage(self, **kwargs) -> PassManager:
         """Post-process the circuit after running."""
         pm = PassManager()
+        pm.property_set = kwargs.get("property_set", {})
         pm.append(SaveCircuitProgress("post"))
         # consolidate before metric depth pass
         # NOTE this is required because of the QiskitRunner unrolling
@@ -92,11 +99,13 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         have already been coded into the DAGOpNodes - so it can't get rid of them.
         """
 
-        def __init__(self, coupling, basis_gates):
-            """Initialize the runner."""
-            self.coupling = coupling
-            self.basis_gates = basis_gates
-            self.property_set = {}
+        @classmethod
+        def _build_stage(cls, **kwargs):
+            stage = cls()
+            stage.property_set = kwargs.get("property_set", {})
+            stage.coupling = kwargs.get("coupling_map", None)
+            stage.basis_gates = kwargs.get("basis_gates", None)
+            return stage
 
         def run(self, circuit):
             """Run the transpiler on the circuit."""
@@ -109,6 +118,20 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
                 initial_layout=self.property_set.get("post_layout", None),
             )
 
+    def _run_stage(self, stage_builder, circuit):
+        """Run a stage and update the property set."""
+        # FIXME, only QiskitRunner needs coupling_map and basis_gates
+        # maybe a better way to move attributes around?
+        stage = stage_builder(
+            property_set=self.property_set,
+            coupling_map=self.coupling,
+            basis_gates=self.basis_gates,
+        )
+        circuit = stage.run(circuit)
+        if stage.property_set:
+            self.property_set.update(stage.property_set)
+        return circuit
+
     def run(self, circuit):
         """Run the transpiler on the circuit.
 
@@ -117,20 +140,16 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         for Qiskit's optimization level 3 transpiler.
         """
         self.property_set = {}  # reset property set
-        stages = [
-            self.build_pre_stage(),
-            self.build_main_stage(),
-            self.QiskitRunner(self.coupling, self.basis_gates),
-            self.build_post_stage(),
-            self.build_metric_stage(),
-        ]
-        for stage in stages:
-            stage.property_set = self.property_set
-            circuit = stage.run(circuit)
-            self.property_set.update(stage.property_set)
 
-        # patch cleanup
-        if "Qiskit" in self.name:
+        circuit = self._run_stage(self.build_pre_stage, circuit)
+        circuit = self._run_stage(self.build_main_stage, circuit)
+        circuit = self._run_stage(self.QiskitRunner._build_stage, circuit)
+        circuit = self._run_stage(self.build_post_stage, circuit)
+        circuit = self._run_stage(self.build_metric_stage, circuit)
+
+        # accepted_subs missing if QiskitRunner is used
+        # or if VF2Layout is called
+        if "accepted_subs" not in self.property_set:
             self.property_set["accepted_subs"] = 0
 
         return circuit
@@ -148,12 +167,12 @@ class SabreMS(CustomLayoutRoutingManager):
         self.name = "SABREMS"
         super().__init__(coupling, cx_basis=cx_basis, logger=logger)
 
-    def build_main_stage(self):
+    def build_main_stage(self, **kwargs):
         """Run SabreMS."""
         pm = PassManager()
+        pm.property_set = kwargs.get("property_set", {})
 
-        # # single-shot
-        # routing_method = SabreSwapMS(coupling_map=self.coupling)
+        # Create the SabreMS pass
         routing_method = ParallelSabreSwapMS(
             coupling_map=self.coupling,
             trials=SWAP_TRIALS,
@@ -162,6 +181,7 @@ class SabreMS(CustomLayoutRoutingManager):
             seed=SEED,
         )
 
+        # Create layout_method
         layout_method = SabreLayout(
             coupling_map=self.coupling,
             routing_pass=routing_method,
@@ -169,13 +189,21 @@ class SabreMS(CustomLayoutRoutingManager):
             seed=SEED,
         )
 
-        # TODO: fix so best layout keeps its routing
-        # that way we don't have to rerun routing
-        pm.append(layout_method)
+        # VF2Layout
+        pm.append(VF2Layout(coupling_map=self.coupling, seed=SEED, call_limit=int(3e7)))
+
+        def vf2_not_converged(property_set):
+            return (
+                property_set["VF2Layout_stop_reason"]
+                is not VF2LayoutStopReason.SOLUTION_FOUND
+            )
+
+        # Append the SabreMS pass with the condition
+        pm.append(layout_method, condition=vf2_not_converged)
         pm.append(FullAncillaAllocation(self.coupling))
         pm.append(EnlargeWithAncilla())
         pm.append(ApplyLayout())
-        pm.append(routing_method)
+        pm.append(routing_method, condition=vf2_not_converged)
         pm.append(SaveCircuitProgress("mid"))
         return pm
 
@@ -188,7 +216,7 @@ class QiskitLevel3(CustomLayoutRoutingManager):
         self.name = "Qiskit"
         super().__init__(coupling, cx_basis=cx_basis)
 
-    def build_main_stage(self):
+    def build_main_stage(self, **kwargs):
         """Do nothing.
 
         NOTE: just do nothing here,

@@ -1,11 +1,4 @@
-"""V3 Rewrite of CNS SABRE Implementation.
-
-Goal is to remove the spaghetti code we created when modifying the original, more
-importantly, I believe I need to decouple the routing from the decomposition for the
-sake of unit testing. We should be able to keep the input and output qubits the same,
-and can verify the correctness of the CNS sub by comparing the output of this pass to
-the original circuit. Also, I hope to improve general readability and modularity.
-"""
+"""V3 Rewrite of CNS SABRE Implementation."""
 
 import copy
 import multiprocessing as mp
