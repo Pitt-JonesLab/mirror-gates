@@ -1,4 +1,4 @@
-# mirror-gate routing
+# MIRAGE (Mirror-decomposition Integrated Routing for quantum Algorithm Gate Efficiency)
 
 #### (virtual-swap transpilation)
 
