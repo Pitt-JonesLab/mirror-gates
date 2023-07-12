@@ -32,9 +32,9 @@ from mirror_gates.utilities import (
 )
 
 # 20,20 is what Qiskit uses for level 3
-LAYOUT_TRIALS = 20  # (physical CPU_COUNT)
-SWAP_TRIALS = 20
-SEED = 42
+LAYOUT_TRIALS = 1  # (physical CPU_COUNT)
+SWAP_TRIALS = 4
+SEED = 7
 
 
 class CustomLayoutRoutingManager(CustomPassManager, ABC):
@@ -75,9 +75,6 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         # NOTE, could consolidate in main stage .requires
         # but if we do it here we won't have to repeat for each restart loop
         pm.append(FastConsolidateBlocks(coord_caching=True))
-
-        # try VF2Layout
-        pm.append(VF2Layout(coupling_map=self.coupling, seed=SEED, call_limit=int(3e7)))
         return pm
 
     def build_post_stage(self, **kwargs) -> PassManager:

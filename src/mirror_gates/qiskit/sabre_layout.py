@@ -185,7 +185,7 @@ class SabreLayout(TransformationPass):
 
             # Do forward-backward iterations.
             # NOTE, moved outside the loop to avoid dag->circuit->dag conversion
-            self.routing_pass.fake_run = True # set to False when debugging
+            self.routing_pass.fake_run = False # set to False when debugging
             circ = dag_to_circuit(dag)
             rev_circ = circ.reverse_ops()
             
@@ -200,14 +200,18 @@ class SabreLayout(TransformationPass):
 
                 for _ in range(self.max_iterations):
                     for _ in ("forward", "backward"):
+                        print(initial_layout)
                         pm = self._layout_and_route_passmanager(initial_layout)
                         new_circ = pm.run(circ)
+                        display(new_circ.decompose().draw('mpl', fold=-1))  # noqa: F821
+                        print("\n\n\n\n")
                         
                         # Update initial layout and reverse the unmapped circuit.
                         pass_final_layout = pm.property_set["final_layout"]
                         final_layout = self._compose_layouts(
                             initial_layout, pass_final_layout, new_circ.qregs
                         )
+                        print(final_layout)
                         initial_layout = final_layout
                         circ, rev_circ = rev_circ, circ
 

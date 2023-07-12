@@ -35,7 +35,7 @@ class ParallelSabreSwapMS(TransformationPass):
         self,
         coupling_map,
         heuristic="lookahead",
-        trials=6,
+        trials=20,
         basis_gate=None,
         parallel=True,
         seed=None,
@@ -48,8 +48,8 @@ class ParallelSabreSwapMS(TransformationPass):
         self.heuristic = heuristic
 
         self.num_trials = trials
-        if self.num_trials < 3:
-            raise TranspilerError("Use at least 3 trials for SabreSwapMS.")
+        if self.num_trials < 4:
+            raise TranspilerError("Use at least 4 trials for SabreSwapMS.")
 
         self.basis_gate = basis_gate or iSwapGate().power(1 / 2)
         self.depth_pass = MonodromyDepth(basis_gate=self.basis_gate)
@@ -91,11 +91,13 @@ class ParallelSabreSwapMS(TransformationPass):
 
     def _run_single_trial(self, trial_number):
         """Run a single trial of the pass."""
-        aggression = 2  # Default aggression level
-        if trial_number < self.num_trials // 6:
+        aggression = 3  # Default aggression level
+        if trial_number < 0.15 * self.num_trials:
             aggression = 0
-        elif trial_number < 2 * (self.num_trials // 6):
+        elif trial_number < 0.50 * self.num_trials:  # 0.15 + 0.35
             aggression = 1
+        elif trial_number < 0.85 * self.num_trials:  # 0.50 + 0.35
+            aggression = 2
         trial = SabreSwapMS(
             self.coupling_map,
             self.heuristic,
@@ -111,6 +113,8 @@ class ParallelSabreSwapMS(TransformationPass):
         """Calculate the score of a result."""
         # this unroll is  unnecessary before the consolidation
         # assuming consolidation is done before SabreSwapMS
+        # NOTE, also means CNS subs need to be single gate
+        # otherwise, CNOT+SWAP won't be consolidated
         # unroller = Unroller(["cx", "iswap", "u", "swap"])
         # temp_dag = unroller.run(result)
         # self.depth_pass.property_set = unroller.property_set
@@ -128,9 +132,12 @@ class SabreSwapMS(LegacySabreSwap):
             aggression (int): How aggressively to search for virtual swaps.
                 0: No virtual-swaps are accepted.
                 1: Only virtual-swaps that improve the cost.
-                2+: Virtual-swaps that improve or do not change the cost.
+                2: Virtual-swaps that improve or do not change the cost.
+                3: All virtual-swaps are accepted.
         """
         # deepcopy for safety
+        if aggression not in [0, 1, 2, 3]:
+            raise ValueError("Invalid aggression level.")
         self.aggression = aggression
         self.property_set = copy.deepcopy(property_set)
         super().__init__(coupling_map, heuristic=heuristic)
@@ -281,9 +288,9 @@ class SabreSwapMS(LegacySabreSwap):
         if self._extended_set is None:
             extended_set = self._obtain_extended_set(dag, self._front_layer)
 
+        # XXX instead of all, just pop the first one
+        # for node in [self._intermediate_layer.pop(0)]:
         for node in self._intermediate_layer:
-            # XXX instead of all, just pop the first one
-            # for node in [self._intermediate_layer.pop(0)]:
             # handles barriers, measure, reset, etc.
             if not isinstance(node.op, Gate):
                 self._apply_gate(
@@ -310,8 +317,10 @@ class SabreSwapMS(LegacySabreSwap):
             )
             self._considered_subs += 1
 
-            if (self.aggression == 1 and sub_score < no_sub_score) or (
-                self.aggression >= 2 and sub_score <= no_sub_score
+            if (
+                (self.aggression == 1 and sub_score < no_sub_score)
+                or (self.aggression == 2 and sub_score <= no_sub_score)
+                or (self.aggression == 3)
             ):
                 self._total_subs += 1
                 self._apply_gate(
@@ -338,6 +347,9 @@ class SabreSwapMS(LegacySabreSwap):
         self._intermediate_layer = []
         return 1
 
+    # TODO, function that makes it less likely to accept a SWAP on a contested edge
+    # e.g. in tree-hierachy, want to have less SWAPs on the high-tier "bottleneck" edges
+
     def _find_and_insert_best_swap(self, dag):
         """Find the best swap and insert it into the DAG."""
         if self._extended_set is None:
@@ -362,6 +374,8 @@ class SabreSwapMS(LegacySabreSwap):
             self._current_layout,
             self._canonical_register,
         )
+        # NOTE- hardcode the SWAP monodromy coordinates
+        # avoids needing to call unitary_to_coordinate function later
         swap_node.op._monodromy_coord = [0.25, 0.25, 0.25, -0.75]
         self._current_layout.swap(*best_swap)
         self._ops_since_progress.append(swap_node)
