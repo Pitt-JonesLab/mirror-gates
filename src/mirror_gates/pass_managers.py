@@ -2,7 +2,6 @@
 
 from abc import ABC
 
-from qiskit import transpile
 from qiskit.circuit.library import CXGate, iSwapGate
 from qiskit.transpiler import PassManager
 from qiskit.transpiler.passes import (
@@ -18,6 +17,7 @@ from qiskit.transpiler.passes import (
 )
 from qiskit.transpiler.passes.layout.vf2_layout import VF2LayoutStopReason
 from transpile_benchy.passmanagers.abc_runner import CustomPassManager
+from transpile_benchy.passmanagers.qiskit_baseline import QiskitStage
 
 from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS  # , SabreSwapMS
 from mirror_gates.qiskit.sabre_layout import SabreLayout
@@ -42,9 +42,12 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
 
     def __init__(self, coupling, cx_basis=False, logger=None):
         """Initialize the pass manager."""
+        super().__init__(name=self.name)
+
+        # set up transpiler kwargs
         self.coupling = coupling
-        self.logger = logger
         self.cx_basis = cx_basis
+        self.logger = logger
         if self.cx_basis:
             self.basis_gate = CXGate()
             self.gate_costs = 1.0
@@ -55,7 +58,25 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
             self.gate_costs = 0.5
             self.name += r"-$\sqrt{\texttt{iSWAP}}$"
             self.basis_gates = ["u", "xx_plus_yy", "id"]
-        super().__init__(name=self.name)
+
+    def stage_builder(self):
+        """Build stages in a defined sequence."""
+
+        def _builder():
+            yield self.build_pre_stage()
+            yield self.build_main_stage()
+            yield QiskitStage.from_predefined_config(
+                optimization_level=3,
+                coupling_map=self.coupling,
+                basis_gates=self.basis_gates,
+                initial_layout=self.property_set.get("post_layout", None),
+            )
+            yield self.build_post_stage()
+
+        return _builder
+
+    # XXX
+    # FIXME, kwargs property_set is either deprecated or broken
 
     def build_pre_stage(self, **kwargs) -> PassManager:
         """Pre-process the circuit before running."""
@@ -87,65 +108,13 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         pm.append(FastConsolidateBlocks(coord_caching=True))
         return pm
 
-    class QiskitRunner:
-        """Run stock transpiler on the circuit.
-
-        This is used to see if there exist any optimizations or cancellations.
-        NOTE: Qiskit here won't know that the virtual-swaps are free,
-        could be a problem - but we are forcing the input and those unitaries
-        have already been coded into the DAGOpNodes - so it can't get rid of them.
-        """
-
-        @classmethod
-        def _build_stage(cls, **kwargs):
-            stage = cls()
-            stage.property_set = kwargs.get("property_set", {})
-            stage.coupling = kwargs.get("coupling_map", None)
-            stage.basis_gates = kwargs.get("basis_gates", None)
-            return stage
-
-        def run(self, circuit):
-            """Run the transpiler on the circuit."""
-            return transpile(
-                circuit,
-                coupling_map=self.coupling,
-                optimization_level=3,
-                # basis_gates=self.basis_gates,
-                basis_gates=["u", "cx", "swap", "id"],
-                initial_layout=self.property_set.get("post_layout", None),
-            )
-
-    def _run_stage(self, stage_builder, circuit):
-        """Run a stage and update the property set."""
-        # FIXME, only QiskitRunner needs coupling_map and basis_gates
-        # maybe a better way to move attributes around?
-        stage = stage_builder(
-            property_set=self.property_set,
-            coupling_map=self.coupling,
-            basis_gates=self.basis_gates,
-        )
-        circuit = stage.run(circuit)
-        if stage.property_set:
-            self.property_set.update(stage.property_set)
-        return circuit
-
     def run(self, circuit):
-        """Run the transpiler on the circuit.
+        """Run the transpiler on the circuit."""
+        circuit = super().run(circuit)
 
-        NOTE: the super class run method is overridden here to allow for
-        the interruption between main- and post- processing to accommodate
-        for Qiskit's optimization level 3 transpiler.
-        """
-        self.property_set = {}  # reset property set
-
-        circuit = self._run_stage(self.build_pre_stage, circuit)
-        circuit = self._run_stage(self.build_main_stage, circuit)
-        circuit = self._run_stage(self.QiskitRunner._build_stage, circuit)
-        circuit = self._run_stage(self.build_post_stage, circuit)
-        circuit = self._run_stage(self.build_metric_stage, circuit)
-
-        # accepted_subs missing if QiskitRunner is used
-        # or if VF2Layout is called
+        # FIXME: either benchmarker uses default value
+        # or we configure SubsMetric differently
+        # accepted_subs missing if QiskitRunner is used or if VF2Layout succeeds
         if "accepted_subs" not in self.property_set:
             self.property_set["accepted_subs"] = 0
 
@@ -213,11 +182,16 @@ class QiskitLevel3(CustomLayoutRoutingManager):
         self.name = "Qiskit"
         super().__init__(coupling, cx_basis=cx_basis)
 
-    def build_main_stage(self, **kwargs):
-        """Do nothing.
+    def stage_builder(self):
+        """Build stages in a defined sequence."""
 
-        NOTE: just do nothing here,
-        then the QiskitRunner will handle placement and routing.
-        transpile() has initial_layout=None if post_layout has not been set.
-        """
-        return PassManager()
+        def _builder():
+            yield QiskitStage.from_predefined_config(
+                optimization_level=3,
+                coupling_map=self.coupling,
+                basis_gates=self.basis_gates,
+                initial_layout=self.property_set.get("post_layout", None),
+            )
+            yield self.build_post_stage()
+
+        return _builder

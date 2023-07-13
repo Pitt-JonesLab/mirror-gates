@@ -42,19 +42,20 @@ class ParallelSabreSwapMS(TransformationPass):
     ):
         """Initialize the pass."""
         super().__init__()
-        # NOTE, normally is required but we make sure is in the pre-stage
-        # self.requires = [FastConsolidateBlocks(coord_caching=True)]
         self.coupling_map = coupling_map
         self.heuristic = heuristic
+        self.parallel = parallel
+        self.fake_run = False
 
         self.num_trials = trials
         if self.num_trials < 4:
             raise TranspilerError("Use at least 4 trials for SabreSwapMS.")
 
         self.basis_gate = basis_gate or iSwapGate().power(1 / 2)
-        self.depth_pass = MonodromyDepth(basis_gate=self.basis_gate)
-        self.parallel = parallel
-        self.fake_run = False
+        # NOTE, normally is required but we make sure is in the pre-stage
+        # self.requires = [FastConsolidateBlocks(coord_caching=True)]
+        self.depth_pass = MonodromyDepth(consolidate=False, basis_gate=self.basis_gate)
+
         # we only use this to generate seeds
         rng = np.random.default_rng(seed)
         # generate an array of seeds

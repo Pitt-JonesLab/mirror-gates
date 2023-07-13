@@ -12,7 +12,6 @@ from qiskit.quantum_info import Operator
 from qiskit.transpiler.basepasses import AnalysisPass, TransformationPass
 from qiskit.transpiler.passes import Collect2qBlocks
 from transpile_benchy.metrics.abc_metrics import DoNothing, MetricInterface
-from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 
 # fast construction UnitaryGate
 swap_matrix = SwapGate().to_matrix()
@@ -177,8 +176,8 @@ class FastConsolidateBlocks(TransformationPass):
     def run(self, dag):
         """Run the ConsolidateBlocks pass on `dag`.
 
-        Iterate over each run and replace it with an equivalent NoCheckUnitary
-        on the same wires.
+        Iterate over each run and replace it with an equivalent NoCheckUnitary on the
+        same wires.
         """
         assert "block_list" in self.property_set
         blocks = self.property_set["block_list"]
@@ -296,7 +295,7 @@ class SubsMetric(MetricInterface):
         """Initialize the metric."""
         super().__init__(name="accepted_subs")
 
-    def _get_pass(self, transpiler: CustomPassManager):
+    def _construct_pass(self):
         """Return the pass associated with this metric.
 
         NOTE: this is a dummy pass, it does nothing.
