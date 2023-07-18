@@ -42,6 +42,7 @@ class ParallelSabreSwapMS(TransformationPass):
         seed=None,
         use_fast_settings=True,
         cost_function="depth",
+        fixed_aggression=None,
     ):
         """Initialize the pass."""
         super().__init__()
@@ -51,6 +52,7 @@ class ParallelSabreSwapMS(TransformationPass):
         self.fake_run = False
         self.use_fast_settings = use_fast_settings
         self.anneal_index = 1.0
+        self.fixed_aggression = fixed_aggression
 
         self.num_trials = trials
         if self.num_trials < 4:
@@ -137,13 +139,16 @@ class ParallelSabreSwapMS(TransformationPass):
 
     def _run_single_trial(self, trial_number):
         """Run a single trial of the pass."""
-        aggression = 3  # Default aggression level
-        if trial_number < 0.15 * self.num_trials:
-            aggression = 0
-        elif trial_number < 0.50 * self.num_trials:  # 0.15 + 0.35
-            aggression = 1
-        elif trial_number < 0.85 * self.num_trials:  # 0.50 + 0.35
-            aggression = 2
+        if self.fixed_aggression is not None:
+            aggression = self.fixed_aggression
+        else:
+            aggression = 3  # Default aggression level
+            if trial_number < 0.15 * self.num_trials:
+                aggression = 0
+            elif trial_number < 0.50 * self.num_trials:  # 0.15 + 0.35
+                aggression = 1
+            elif trial_number < 0.85 * self.num_trials:  # 0.50 + 0.35
+                aggression = 2
         trial = SabreSwapMS(
             self.coupling_map,
             self.heuristic,

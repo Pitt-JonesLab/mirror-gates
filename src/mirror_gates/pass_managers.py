@@ -46,6 +46,10 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         """Initialize the pass manager."""
         super().__init__(name=self.name)
 
+        self.layout_trials = LAYOUT_TRIALS
+        self.swap_trials = SWAP_TRIALS
+        self.seed = SEED
+
         # set up transpiler kwargs
         self.use_fast_settings = use_fast_settings
         self.coupling = coupling
@@ -131,6 +135,9 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         # accepted_subs missing if QiskitRunner is used or if VF2Layout succeeds
         if "accepted_subs" not in self.property_set:
             self.property_set["accepted_subs"] = 0
+        if "layout_trials" not in self.property_set:
+            self.property_set["layout_trials"] = []
+            self.property_set["layout_trials_std"] = 0
 
         return circuit
 
@@ -148,6 +155,7 @@ class SabreMS(CustomLayoutRoutingManager):
         use_fast_settings=True,
         cost_function="depth",
         anneal_routing=False,
+        fixed_aggression=None,
     ):
         """Initialize the pass manager.
 
@@ -157,6 +165,7 @@ class SabreMS(CustomLayoutRoutingManager):
         self.name = name or "SABREMS"
         self.cost_function = cost_function
         self.anneal_routing = anneal_routing
+        self.fixed_aggression = fixed_aggression
         super().__init__(
             coupling,
             cx_basis=cx_basis,
@@ -172,25 +181,28 @@ class SabreMS(CustomLayoutRoutingManager):
         # Create the SabreMS pass
         routing_method = ParallelSabreSwapMS(
             coupling_map=self.coupling,
-            trials=SWAP_TRIALS,
+            trials=self.swap_trials,
             basis_gate=self.basis_gate,
             parallel=self.parallel,
-            seed=SEED,
+            seed=self.seed,
             use_fast_settings=self.use_fast_settings,
             cost_function=self.cost_function,
+            fixed_aggression=self.fixed_aggression,
         )
 
         # Create layout_method
         layout_method = SabreLayout(
             coupling_map=self.coupling,
             routing_pass=routing_method,
-            layout_trials=LAYOUT_TRIALS,
-            seed=SEED,
+            layout_trials=self.layout_trials,
+            seed=self.seed,
             anneal_routing=self.anneal_routing,
         )
 
         # VF2Layout
-        pm.append(VF2Layout(coupling_map=self.coupling, seed=SEED, call_limit=int(3e7)))
+        pm.append(
+            VF2Layout(coupling_map=self.coupling, seed=self.seed, call_limit=int(3e7))
+        )
 
         def vf2_not_converged(property_set):
             return (

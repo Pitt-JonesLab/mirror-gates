@@ -79,7 +79,7 @@ class SabreLayout(TransformationPass):
         coupling_map,
         routing_pass=None,
         seed=None,
-        max_iterations=16,
+        max_iterations=4,
         swap_trials=None,
         layout_trials=None,
         skip_routing=False,
@@ -238,8 +238,8 @@ class SabreLayout(TransformationPass):
                     best_layout = initial_layout
                 self.property_set["layout_trials"] += [pm.property_set["best_score"]]
             
-            self.property_set["layout_trials_var"] = np.var(self.property_set["layout_trials"])
-            
+            self.property_set["layout_trials_std"] = np.std(self.property_set["layout_trials"])
+        
             for qreg in dag.qregs.values():
                 best_layout.add_register(qreg)
             self.property_set["layout"] = best_layout
