@@ -36,7 +36,7 @@ from mirror_gates.utilities import (
 # 20,20 is what Qiskit uses for level 3
 LAYOUT_TRIALS = 6  # (physical CPU_COUNT) #1,4,7 for debug
 SWAP_TRIALS = 6
-SEED = 0
+SEED = 42
 
 
 class CustomLayoutRoutingManager(CustomPassManager, ABC):
@@ -147,6 +147,7 @@ class SabreMS(CustomLayoutRoutingManager):
         logger=None,
         use_fast_settings=True,
         cost_function="depth",
+        anneal_routing=False,
     ):
         """Initialize the pass manager.
 
@@ -155,6 +156,7 @@ class SabreMS(CustomLayoutRoutingManager):
         self.parallel = parallel
         self.name = name or "SABREMS"
         self.cost_function = cost_function
+        self.anneal_routing = anneal_routing
         super().__init__(
             coupling,
             cx_basis=cx_basis,
@@ -184,6 +186,7 @@ class SabreMS(CustomLayoutRoutingManager):
             routing_pass=routing_method,
             layout_trials=LAYOUT_TRIALS,
             seed=SEED,
+            anneal_routing=self.anneal_routing,
         )
 
         # VF2Layout

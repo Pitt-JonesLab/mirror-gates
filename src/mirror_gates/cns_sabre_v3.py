@@ -50,6 +50,7 @@ class ParallelSabreSwapMS(TransformationPass):
         self.parallel = parallel
         self.fake_run = False
         self.use_fast_settings = use_fast_settings
+        self.anneal_index = 1.0
 
         self.num_trials = trials
         if self.num_trials < 4:
@@ -79,12 +80,45 @@ class ParallelSabreSwapMS(TransformationPass):
             mapped_dag = self._serial_run(dag)
         return mapped_dag if not self.fake_run else dag
 
+    def set_anneal_params(self, fb_iter: float):
+        """Anneal configuration to escape local minima.
+
+        Args: fb_iter (float): fraction of current iteration to total iterations
+
+        In the layout pass, each forward/backwards mapping calls routing multiple times,
+        and keeps the one that minimized the cost function. Instead of keeping the min,
+        select randomly from the top % performers. Then for each successive iteration,
+        select from smaller % of the top scores until only keep the best score circuit.
+        """
+        self.anneal_index = fb_iter
+
+    def _anneal_select_result(self, results):
+        """Select a result stochastically based on annealing parameters.
+
+        Args:
+            results (list): each a tuple with cost as the first element.
+
+        Returns:
+            tuple: selected result.
+        """
+        # Determine how many of the top results to consider, based on annealing.
+        # Early on, consider more results. Later, consider fewer.
+        n_top_results = max(int((0.5 - 0.5 * self.anneal_index) * len(results)), 1)
+
+        # Sort results by cost and select the top ones.
+        top_results = sorted(results, key=lambda x: x[0])[:n_top_results]
+
+        # Select one of the top results randomly.
+        random_index = np.random.randint(0, len(top_results))
+        return top_results[random_index]
+
     def _parallel_run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the pass in parallel."""
         self.dag = dag  # Store the dag can be accessed by run_single_trial
         with mp.Pool() as pool:
             results = pool.map(self._run_single_trial, range(self.num_trials))
-        best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
+        # best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
+        best_score, best_result, best_property_set = self._anneal_select_result(results)
         self.property_set["final_layout"] = best_property_set["final_layout"]
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
         self.property_set["best_score"] = best_score
@@ -94,7 +128,8 @@ class ParallelSabreSwapMS(TransformationPass):
         """Run the pass in serial."""
         self.dag = dag  # Store the dag can be accessed by run_single_trial
         results = [self._run_single_trial(i) for i in range(self.num_trials)]
-        best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
+        # best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
+        best_score, best_result, best_property_set = self._anneal_select_result(results)
         self.property_set["final_layout"] = best_property_set["final_layout"]
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
         self.property_set["best_score"] = best_score

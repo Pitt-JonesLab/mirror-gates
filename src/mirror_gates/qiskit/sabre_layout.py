@@ -79,10 +79,11 @@ class SabreLayout(TransformationPass):
         coupling_map,
         routing_pass=None,
         seed=None,
-        max_iterations=4,
+        max_iterations=16,
         swap_trials=None,
         layout_trials=None,
         skip_routing=False,
+        anneal_routing=False,
     ):
         """SabreLayout initializer.
 
@@ -143,6 +144,7 @@ class SabreLayout(TransformationPass):
         #     raise TranspilerError("Both routing_pass and swap_trials can't be set at the same time")
 
         self.routing_pass = routing_pass
+        self.anneal_routing = anneal_routing
         self.seed = seed
         self.max_iterations = max_iterations
         self.trials = swap_trials
@@ -189,7 +191,12 @@ class SabreLayout(TransformationPass):
             circ = dag_to_circuit(dag)
             rev_circ = circ.reverse_ops()
             
+            # tracking success from each independent layout trial 
+            self.property_set["layout_trials"] = []
+
             for _ in range(self.layout_trials):
+                
+                # What if instead of random initial layout - consider DenseLayout for one attempt?
                 physical_qubits = rng.choice(
                     self.coupling_map.size(), len(dag.qubits), replace=False
                 )
@@ -198,12 +205,16 @@ class SabreLayout(TransformationPass):
                     {q: dag.qubits[i] for i, q in enumerate(physical_qubits)}
                 )
 
-                for _ in range(self.max_iterations):
+                for fb_iter in range(self.max_iterations):
                     for _ in ("forward", "backward"):
                         # print(initial_layout)
+
+                        if self.anneal_routing:
+                            self.routing_pass.set_anneal_params(1.0*fb_iter/self.max_iterations)
+
                         pm = self._layout_and_route_passmanager(initial_layout)
                         new_circ = pm.run(circ)
-                        # display(new_circ.decompose().draw('mpl', fold=-1))  # noqa: F821
+                        # display(new_circ.decompose().draw('mpl', fold=-1))
                         # print("\n\n\n\n")
                         
                         # Update initial layout and reverse the unmapped circuit.
@@ -225,7 +236,10 @@ class SabreLayout(TransformationPass):
                 if best_cost is None or pm.property_set["best_score"] < best_cost:
                     best_cost = pm.property_set["best_score"]
                     best_layout = initial_layout
-
+                self.property_set["layout_trials"] += [pm.property_set["best_score"]]
+            
+            self.property_set["layout_trials_var"] = np.var(self.property_set["layout_trials"])
+            
             for qreg in dag.qregs.values():
                 best_layout.add_register(qreg)
             self.property_set["layout"] = best_layout
