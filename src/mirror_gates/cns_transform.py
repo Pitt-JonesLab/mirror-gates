@@ -1,7 +1,6 @@
 """CNS Transformations for mirror gates."""
 
 import numpy as np
-from monodromy.coverage import target_build_ansatz
 from qiskit import QuantumCircuit
 from qiskit.circuit import Instruction
 from qiskit.circuit.library import SwapGate
@@ -33,42 +32,30 @@ iswap_replace.h(1)
 
 # TODO generalize to arbitrary input
 # coverage = gates_to_coverage(iSwapGate().power(1 / 2))
-coverage = None
+# coverage = None
 
 
 # TODO, we already know solutions to CX->iSWAP and iSWAP->CX
 # so we can just use those instead of the general case...?
-def _get_node_cns_ansatz(node: DAGOpNode) -> Instruction:
-    """Rather than appending a SWAP, use monodromy to build an ansatz."""
-    raise NotImplementedError
-    if len(node.qargs) != 2:
-        raise ValueError("Only supports 2Q gates")
-    target = UnitaryGate(node.op.to_matrix())
-    return target_build_ansatz(coverage_set=coverage, target=target)
+# def _get_node_cns_ansatz(node: DAGOpNode) -> Instruction:
+#     """Rather than appending a SWAP, use monodromy to build an ansatz."""
+#     raise NotImplementedError
+#     if len(node.qargs) != 2:
+#         raise ValueError("Only supports 2Q gates")
+#     target = UnitaryGate(node.op.to_matrix())
+#     return target_build_ansatz(coverage_set=coverage, target=target)
 
 
 # NOTE the reason I am not doing this is because I think for now it is better to
 # stay with CX and SWAP gates for qiskit to do more optimizations
 # but we could just input the exact unitary here if we wanted
-def _get_node_cns(node: DAGOpNode) -> Instruction:
+def _get_node_cns(node: DAGOpNode, use_fast_settings: bool = True) -> Instruction:
     """Get the CNS transformation for a given node."""
     if len(node.qargs) != 2:
         raise ValueError("Only supports 2Q gates")
 
-    # see NOTE above, I'm not sure if this is true, but staying in CX might make
-    # it easier for Qiskit to do commutative cancellations which happen later
-
-    # XXX only turn this on during debugging
-    # if node.name == "cx" or c1c2c3(node.op.to_matrix()) == (0.5, 0, 0):
-    #     return DAGOpNode(op=cx_replace.to_instruction(), qargs=node.qargs)
-    # elif node.name == "iswap" or c1c2c3(node.op.to_matrix()) == (0.5, 0.5, 0):
-    #     return DAGOpNode(op=iswap_replace.to_instruction(), qargs=node.qargs)
-
-    else:
-        # temp_circuit = QuantumCircuit(2)
-        # temp_circuit.append(node.op, [0, 1])
-        # temp_circuit.swap(0, 1)
-        # return DAGOpNode(op=temp_circuit.to_instruction(), qargs=node.qargs)
+    # NOTE, the UnitaryGate() constructor is a bit expensive
+    if use_fast_settings:
         new_op = SwapGate().to_matrix() @ node.op.to_matrix()
         new_unitary = NoCheckUnitary(new_op, label="u+swap")
 
@@ -78,10 +65,11 @@ def _get_node_cns(node: DAGOpNode) -> Instruction:
         new_unitary._monodromy_coord = FastConsolidateBlocks.unitary_to_coordinate(
             new_unitary
         )
+    else:
+        new_op = SwapGate().to_matrix() @ node.op.to_matrix()
+        new_unitary = UnitaryGate(new_op, label="u+swap")
 
-        # NOTE, the UnitaryGate() constructor is a bit expensive
-        # return DAGOpNode(op=UnitaryGate(new_op), qargs=node.qargs)
-        return DAGOpNode(op=new_unitary, qargs=node.qargs)
+    return DAGOpNode(op=new_unitary, qargs=node.qargs)
 
 
 def cns_transform(dag: DAGCircuit, *h_nodes, preserve_layout=False) -> DAGCircuit:

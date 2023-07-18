@@ -3,7 +3,7 @@ exclude: ".*deprecated/|.*qiskit/"
 
 repos:
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: "v0.0.277"
+    rev: "v0.0.278"
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
@@ -39,7 +39,7 @@ repos:
         language_version: python3.9
 
   - repo: https://github.com/PyCQA/docformatter
-    rev: v1.7.4
+    rev: v1.7.5
     hooks:
       - id: docformatter
         additional_dependencies: [tomli]

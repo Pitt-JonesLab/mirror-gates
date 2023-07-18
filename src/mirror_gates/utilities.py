@@ -126,6 +126,7 @@ class FastConsolidateBlocks(TransformationPass):
         # check if interior unitary is in cache
         if interior_key in self.monodromy_cache:
             _monodromy_coord = self.monodromy_cache[interior_key]
+            self.hits += 1
         else:
             # compute monodromy coordinate
             _monodromy_coord = FastConsolidateBlocks.unitary_to_coordinate(interior)
@@ -171,7 +172,12 @@ class FastConsolidateBlocks(TransformationPass):
 
                     gate_operator = swap_rows_columns_list(gate_operator)
             operator = gate_operator @ operator
-        return NoCheckUnitary(operator)
+
+        # FIXME use_fast_settings
+        if self.coord_caching:
+            return NoCheckUnitary(operator)
+        else:
+            return UnitaryGate(operator)
 
     def run(self, dag):
         """Run the ConsolidateBlocks pass on `dag`.
@@ -181,6 +187,8 @@ class FastConsolidateBlocks(TransformationPass):
         """
         assert "block_list" in self.property_set
         blocks = self.property_set["block_list"]
+
+        self.hits = 0
 
         # Compute ordered indices for the global circuit wires
         self.global_index_map = {wire: idx for idx, wire in enumerate(dag.qubits)}
@@ -199,6 +207,9 @@ class FastConsolidateBlocks(TransformationPass):
             dag.replace_block_with_op(block, unitary, qubit_map, cycle_check=False)
 
         del self.property_set["block_list"]
+
+        # print(f"hits: {self.hits}/{len(blocks)}")
+        # self.property_set["hits"] = self.hits/len(blocks)
 
         return dag
 

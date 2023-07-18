@@ -6,6 +6,8 @@ from qiskit.circuit.library import CXGate, iSwapGate
 from qiskit.transpiler import PassManager
 from qiskit.transpiler.passes import (
     ApplyLayout,
+    Collect2qBlocks,
+    ConsolidateBlocks,
     EnlargeWithAncilla,
     FullAncillaAllocation,
     OptimizeSwapBeforeMeasure,
@@ -32,19 +34,20 @@ from mirror_gates.utilities import (
 )
 
 # 20,20 is what Qiskit uses for level 3
-LAYOUT_TRIALS = 1  # (physical CPU_COUNT)
-SWAP_TRIALS = 4
-SEED = 7
+LAYOUT_TRIALS = 6  # (physical CPU_COUNT) #1,4,7 for debug
+SWAP_TRIALS = 6
+SEED = 0
 
 
 class CustomLayoutRoutingManager(CustomPassManager, ABC):
     """Subclass for CustomPassManager implementing pre- and post-processing."""
 
-    def __init__(self, coupling, cx_basis=False, logger=None):
+    def __init__(self, coupling, cx_basis=False, logger=None, use_fast_settings=True):
         """Initialize the pass manager."""
         super().__init__(name=self.name)
 
         # set up transpiler kwargs
+        self.use_fast_settings = use_fast_settings
         self.coupling = coupling
         self.cx_basis = cx_basis
         self.logger = logger
@@ -91,21 +94,32 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         pm.append(RemoveDiagonalGatesBeforeMeasure())
         pm.append(RemoveFinalMeasurements())
         # We don't have classical bit registers implemented yet
-        pm.append(RemoveAllMeasurements())  # hacky cleaning
-        pm.append(SaveCircuitProgress("pre"))
+        pm.append(RemoveAllMeasurements())  # hacky cleaning # FIXME
+        # pm.append(SaveCircuitProgress("pre"))
+
         # NOTE, could consolidate in main stage .requires
         # but if we do it here we won't have to repeat for each restart loop
-        pm.append(FastConsolidateBlocks(coord_caching=True))
+        if self.use_fast_settings:
+            pm.append(FastConsolidateBlocks(coord_caching=True))
+        else:
+            pm.append(Collect2qBlocks())
+            pm.append(ConsolidateBlocks(force_consolidate=True))
         return pm
 
     def build_post_stage(self, **kwargs) -> PassManager:
         """Post-process the circuit after running."""
         pm = PassManager()
+        pm.append(SaveCircuitProgress("post0"))
         pm.property_set = kwargs.get("property_set", {})
-        pm.append(SaveCircuitProgress("post"))
+        # pm.append(SaveCircuitProgress("post"))
+
         # consolidate before metric depth pass
-        # NOTE this is required because of the QiskitRunner unrolling
-        pm.append(FastConsolidateBlocks(coord_caching=True))
+        # NOTE this is required because QiskitRunner will unroll to CX basis
+        if self.use_fast_settings:
+            pm.append(FastConsolidateBlocks(coord_caching=True))
+        else:
+            pm.append(Collect2qBlocks())
+            pm.append(ConsolidateBlocks(force_consolidate=True))
         return pm
 
     def run(self, circuit):
@@ -124,14 +138,29 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
 class SabreMS(CustomLayoutRoutingManager):
     """SabreMS pass manager."""
 
-    def __init__(self, coupling, parallel=True, cx_basis=False, logger=None):
+    def __init__(
+        self,
+        coupling,
+        name=None,
+        parallel=True,
+        cx_basis=False,
+        logger=None,
+        use_fast_settings=True,
+        cost_function="depth",
+    ):
         """Initialize the pass manager.
 
         Use parallel=False for debugging.
         """
         self.parallel = parallel
-        self.name = "SABREMS"
-        super().__init__(coupling, cx_basis=cx_basis, logger=logger)
+        self.name = name or "SABREMS"
+        self.cost_function = cost_function
+        super().__init__(
+            coupling,
+            cx_basis=cx_basis,
+            logger=logger,
+            use_fast_settings=use_fast_settings,
+        )
 
     def build_main_stage(self, **kwargs):
         """Run SabreMS."""
@@ -145,6 +174,8 @@ class SabreMS(CustomLayoutRoutingManager):
             basis_gate=self.basis_gate,
             parallel=self.parallel,
             seed=SEED,
+            use_fast_settings=self.use_fast_settings,
+            cost_function=self.cost_function,
         )
 
         # Create layout_method

@@ -19,6 +19,7 @@ from mirror_gates.cns_transform import _get_node_cns
 # we have in deprecated/ the original python implementation we modified in V2.
 # might be useful to grab some functions from it
 from mirror_gates.qiskit.sabre_swap import SabreSwap as LegacySabreSwap
+from mirror_gates.utilities import DoNothing
 
 EXTENDED_SET_SIZE = (
     20  # Size of lookahead window. TODO: set dynamically to len(current_layout)
@@ -39,6 +40,8 @@ class ParallelSabreSwapMS(TransformationPass):
         basis_gate=None,
         parallel=True,
         seed=None,
+        use_fast_settings=True,
+        cost_function="depth",
     ):
         """Initialize the pass."""
         super().__init__()
@@ -46,16 +49,23 @@ class ParallelSabreSwapMS(TransformationPass):
         self.heuristic = heuristic
         self.parallel = parallel
         self.fake_run = False
+        self.use_fast_settings = use_fast_settings
 
         self.num_trials = trials
         if self.num_trials < 4:
             raise TranspilerError("Use at least 4 trials for SabreSwapMS.")
 
-        self.basis_gate = basis_gate or iSwapGate().power(1 / 2)
         # NOTE, normally is required but we make sure is in the pre-stage
+        # this is so we don't have to call this function in each layout_trial
         # self.requires = [FastConsolidateBlocks(coord_caching=True)]
-        self.depth_pass = MonodromyDepth(consolidate=False, basis_gate=self.basis_gate)
 
+        self.cost_function = cost_function
+        self.basis_gate = basis_gate or iSwapGate().power(1 / 2)
+        self.cost_pass = MonodromyDepth(
+            consolidate=False,
+            basis_gate=self.basis_gate,
+            use_fast_settings=self.use_fast_settings,
+        )
         # we only use this to generate seeds
         rng = np.random.default_rng(seed)
         # generate an array of seeds
@@ -104,29 +114,42 @@ class ParallelSabreSwapMS(TransformationPass):
             self.heuristic,
             self.property_set,
             aggression=aggression,
+            use_fast_settings=self.use_fast_settings,
         )
         trial.seed = self.seeds[trial_number]
         result = trial.run(self.dag)
-        score = self._calculate_score(result)
+        score = self._calculate_score(result, trial.property_set)
         return score, result, trial.property_set
 
-    def _calculate_score(self, result: DAGCircuit) -> float:
+    def _calculate_score(self, result: DAGCircuit, property_set) -> float:
         """Calculate the score of a result."""
-        # this unroll is  unnecessary before the consolidation
         # assuming consolidation is done before SabreSwapMS
-        # NOTE, also means CNS subs need to be single gate
-        # otherwise, CNOT+SWAP won't be consolidated
+        # NOTE, means CNS subs need to be single gate
         # unroller = Unroller(["cx", "iswap", "u", "swap"])
-        # temp_dag = unroller.run(result)
-        # self.depth_pass.property_set = unroller.property_set
-        self.depth_pass.run(result)
-        return self.depth_pass.property_set["monodromy_depth"]
+        if self.cost_function == "depth":
+            self.cost_pass.property_set = property_set
+            self.cost_pass.run(result)
+            # print(f"monodromy_depth: \
+            #       {self.cost_pass.property_set['monodromy_depth']}")
+            return self.cost_pass.property_set["monodromy_depth"]
+        else:  # basic SABRE
+            do_nothing = DoNothing()
+            do_nothing.property_set = property_set
+            do_nothing.run(result)
+            return do_nothing.property_set["required_swaps"]
 
 
 class SabreSwapMS(LegacySabreSwap):
     """V3 Rewrite of CNS SABRE Implementation."""
 
-    def __init__(self, coupling_map, property_set, heuristic="lookahead", aggression=2):
+    def __init__(
+        self,
+        coupling_map,
+        property_set,
+        heuristic="lookahead",
+        aggression=2,
+        use_fast_settings=True,
+    ):
         """Initialize the pass.
 
         Args:
@@ -142,10 +165,7 @@ class SabreSwapMS(LegacySabreSwap):
         self.aggression = aggression
         self.property_set = copy.deepcopy(property_set)
         super().__init__(coupling_map, heuristic=heuristic)
-        # want to force only 2Q gates visible to the algorithm,
-        # makes much easier if don't have to deal with 1Q gates as successors
-        # requires is satisfied by parent class
-        # self.requires = [Collect2qBlocks(), ConsolidateBlocks(force_consolidate=True)]
+        self.use_fast_settings = use_fast_settings
 
     def _initialize_variables(self, dag):
         """Initialize variables for the algorithm."""
@@ -186,6 +206,7 @@ class SabreSwapMS(LegacySabreSwap):
         self._intermediate_layer = []
         self._total_subs = 0
         self._considered_subs = 0
+        self._required_swaps = 0
 
         self.rng = np.random.default_rng(self.seed)
 
@@ -310,7 +331,7 @@ class SabreSwapMS(LegacySabreSwap):
             )
 
             # compare against the sub
-            node_prime = _get_node_cns(node)
+            node_prime = _get_node_cns(node, self.use_fast_settings)
             self._current_layout.swap(*node.qargs)
 
             sub_score = self._score_heuristic(
@@ -377,7 +398,8 @@ class SabreSwapMS(LegacySabreSwap):
         )
         # NOTE- hardcode the SWAP monodromy coordinates
         # avoids needing to call unitary_to_coordinate function later
-        swap_node.op._monodromy_coord = [0.25, 0.25, 0.25, -0.75]
+        if self.use_fast_settings:  # questionable
+            swap_node.op._monodromy_coord = [0.25, 0.25, 0.25, -0.75]
         self._current_layout.swap(*best_swap)
         self._ops_since_progress.append(swap_node)
 
@@ -387,6 +409,7 @@ class SabreSwapMS(LegacySabreSwap):
         else:
             self.qubits_decay[best_swap[0]] += DECAY_RATE
             self.qubits_decay[best_swap[1]] += DECAY_RATE
+        self._required_swaps += 1
 
     def run(self, dag):
         """Run the pass on `dag`."""
@@ -433,5 +456,6 @@ class SabreSwapMS(LegacySabreSwap):
             self.property_set["accepted_subs"] = (
                 1.0 * self._total_subs / self._considered_subs
             )
+        self.property_set["required_swaps"] = self._required_swaps
 
         return self._mapped_dag
