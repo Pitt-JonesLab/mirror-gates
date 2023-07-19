@@ -34,21 +34,29 @@ from mirror_gates.utilities import (
 )
 
 # 20,20 is what Qiskit uses for level 3
-LAYOUT_TRIALS = 6  # (physical CPU_COUNT) #1,4,7 for debug
-SWAP_TRIALS = 6
-SEED = 42
+DEFAULT_LAYOUT_TRIALS = 6  # (physical CPU_COUNT) #1,4,7 for debug
+DEFAULT_SWAP_TRIALS = 6
+DEFAULT_SEED = 42
 
 
 class CustomLayoutRoutingManager(CustomPassManager, ABC):
     """Subclass for CustomPassManager implementing pre- and post-processing."""
 
-    def __init__(self, coupling, cx_basis=False, logger=None, use_fast_settings=True):
+    def __init__(
+        self,
+        coupling,
+        cx_basis=False,
+        logger=None,
+        use_fast_settings=True,
+        layout_trials=None,
+        swap_trials=None,
+    ):
         """Initialize the pass manager."""
         super().__init__(name=self.name)
 
-        self.layout_trials = LAYOUT_TRIALS
-        self.swap_trials = SWAP_TRIALS
-        self.seed = SEED
+        self.layout_trials = layout_trials or DEFAULT_LAYOUT_TRIALS
+        self.swap_trials = swap_trials or DEFAULT_SWAP_TRIALS
+        self.seed = DEFAULT_SEED
 
         # set up transpiler kwargs
         self.use_fast_settings = use_fast_settings
@@ -156,6 +164,8 @@ class SabreMS(CustomLayoutRoutingManager):
         cost_function="depth",
         anneal_routing=False,
         fixed_aggression=None,
+        layout_trials=None,
+        swap_trials=None,
     ):
         """Initialize the pass manager.
 
@@ -171,6 +181,8 @@ class SabreMS(CustomLayoutRoutingManager):
             cx_basis=cx_basis,
             logger=logger,
             use_fast_settings=use_fast_settings,
+            layout_trials=layout_trials,
+            swap_trials=swap_trials,
         )
 
     def build_main_stage(self, **kwargs):
