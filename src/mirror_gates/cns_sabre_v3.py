@@ -494,13 +494,14 @@ class SabreSwapMS(LegacySabreSwap):
 
         # WARNING: not well understood behavior
         # fix leading SWAPs
-        for op in self._mapped_dag.front_layer():
-            if op.name == "swap":
-                self._mapped_dag.remove_op_node(op)
+        while any([op.name == "swap" for op in self._mapped_dag.front_layer()]):
+            for op in self._mapped_dag.front_layer():
+                if op.name == "swap":
+                    self._mapped_dag.remove_op_node(op)
 
         # check if mapped_dag front layer contains swaps
         if not self.fake_run and any(
-            ["swap" == op.name for op in self._mapped_dag.front_layer()]
+            [op.name == "swap" for op in self._mapped_dag.front_layer()]
         ):
             raise TranspilerError("SabreSwapMS begins with a SWAP.")
 

@@ -38,10 +38,6 @@ DEFAULT_LAYOUT_TRIALS = 6  # (physical CPU_COUNT) #1,4,7 for debug
 DEFAULT_SWAP_TRIALS = 6
 DEFAULT_SEED = 42
 
-DEFAULT_LAYOUT_TRIALS = 1  # (physical CPU_COUNT) #1,4,7 for debug
-DEFAULT_SWAP_TRIALS = 4
-DEFAULT_SEED = 7
-
 
 class CustomLayoutRoutingManager(CustomPassManager, ABC):
     """Subclass for CustomPassManager implementing pre- and post-processing."""
@@ -239,9 +235,10 @@ class SabreMS(CustomLayoutRoutingManager):
 class QiskitLevel3(CustomLayoutRoutingManager):
     """Qiskit level 3 pass manager."""
 
-    def __init__(self, coupling, cx_basis=False):
+    def __init__(self, coupling, cx_basis=False, python_sabre=False):
         """Initialize the pass manager."""
         self.name = "Qiskit"
+        self.python_sabre = python_sabre
         super().__init__(coupling, cx_basis=cx_basis)
 
     def stage_builder(self):
@@ -253,6 +250,7 @@ class QiskitLevel3(CustomLayoutRoutingManager):
                 coupling_map=self.coupling,
                 basis_gates=self.basis_gates,
                 initial_layout=self.property_set.get("post_layout", None),
+                routing_method="legacy_sabre" if self.python_sabre else None,
             )
             yield self.build_post_stage()
 
