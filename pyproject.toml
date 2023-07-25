@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [tool.ruff]
 target-version = "py39"
 fix = true
+include = ["*.py", "*.pyi", "**/pyproject.toml", "*.ipynb"]
 
 [tool.isort]
 profile = "black"
