@@ -38,6 +38,10 @@ DEFAULT_LAYOUT_TRIALS = 6  # (physical CPU_COUNT) #1,4,7 for debug
 DEFAULT_SWAP_TRIALS = 6
 DEFAULT_SEED = 42
 
+DEFAULT_LAYOUT_TRIALS = 1  # (physical CPU_COUNT) #1,4,7 for debug
+DEFAULT_SWAP_TRIALS = 4
+DEFAULT_SEED = 7
+
 
 class CustomLayoutRoutingManager(CustomPassManager, ABC):
     """Subclass for CustomPassManager implementing pre- and post-processing."""

@@ -80,6 +80,7 @@ class ParallelSabreSwapMS(TransformationPass):
             mapped_dag = self._parallel_run(dag)
         else:
             mapped_dag = self._serial_run(dag)
+
         return mapped_dag if not self.fake_run else dag
 
     def set_anneal_params(self, fb_iter: float):
@@ -221,6 +222,7 @@ class SabreSwapMS(LegacySabreSwap):
         self.dist_matrix = self.coupling_map.distance_matrix
 
         # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
+        assert self.fake_run is False  # real run required to evaluate cost function
         self._mapped_dag = None
         if not self.fake_run:
             self._mapped_dag = dag.copy_empty_like()
@@ -483,11 +485,24 @@ class SabreSwapMS(LegacySabreSwap):
                     self._canonical_register,
                 )
             self._intermediate_layer = []
+
         # assert front layer and intermediate layer are empty'
         assert not self._front_layer and not self._intermediate_layer
 
         # Set final layout and return the mapped dag
         self.property_set["final_layout"] = self._current_layout
+
+        # WARNING: not well understood behavior
+        # fix leading SWAPs
+        for op in self._mapped_dag.front_layer():
+            if op.name == "swap":
+                self._mapped_dag.remove_op_node(op)
+
+        # check if mapped_dag front layer contains swaps
+        if not self.fake_run and any(
+            ["swap" == op.name for op in self._mapped_dag.front_layer()]
+        ):
+            raise TranspilerError("SabreSwapMS begins with a SWAP.")
 
         # write accepted_subs as fraction of total number of 2Q gates considered
         if self._considered_subs == 0:
