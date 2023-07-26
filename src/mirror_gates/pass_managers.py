@@ -22,7 +22,7 @@ from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 from transpile_benchy.passmanagers.qiskit_baseline import QiskitStage
 
 from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS  # , SabreSwapMS
-from mirror_gates.qiskit.sabre_layout import SabreLayout
+from mirror_gates.qiskit.sabre_layout_v2 import SabreLayout
 from mirror_gates.sqiswap_equiv import sel  # noqa: F401
 from mirror_gates.utilities import (
     AssignAllParameters,
@@ -150,6 +150,10 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         return circuit
 
 
+# TODO: refactor to use plugins, will let combine main into Qiskit stages
+# Qiskit stage will use the custom layout and routing methods as plugins
+
+
 class SabreMS(CustomLayoutRoutingManager):
     """SabreMS pass manager."""
 
@@ -249,8 +253,8 @@ class QiskitLevel3(CustomLayoutRoutingManager):
                 optimization_level=3,
                 coupling_map=self.coupling,
                 basis_gates=self.basis_gates,
-                initial_layout=self.property_set.get("post_layout", None),
                 routing_method="legacy_sabre" if self.python_sabre else None,
+                layout_method="legacy_layout" if self.python_sabre else None,
             )
             yield self.build_post_stage()
 

@@ -72,6 +72,10 @@ class SabreSwap(TransformationPass):
         heuristic="basic",
         seed=None,
         fake_run=False,
+        property_set=None,
+        aggression=None,
+        anneal_index=None,
+        use_fast_settings=None,
     ):
         r"""SabreSwap initializer.
 
@@ -144,6 +148,10 @@ class SabreSwap(TransformationPass):
         self._bit_indices = None
         self.dist_matrix = None
 
+        # override property_set so will work with parallel wrapper
+        if property_set is not None:
+            self.property_set = property_set
+
     def run(self, dag):
         """Run the SabreSwap pass on `dag`.
 
@@ -212,26 +220,18 @@ class SabreSwap(TransformationPass):
                     execute_gate_list.append(node)
             front_layer = new_front_layer
 
-            if (
-                not execute_gate_list
-                and len(ops_since_progress) > max_iterations_without_progress
-            ):
-                # print("HERE, backtracking")
+            if not execute_gate_list and len(ops_since_progress) > max_iterations_without_progress:
                 # Backtrack to the last time we made progress, then greedily insert swaps to route
                 # the gate with the smallest distance between its arguments.  This is a release
                 # valve for the algorithm to avoid infinite loops only, and should generally not
                 # come into play for most circuits.
                 self._undo_operations(ops_since_progress, mapped_dag, current_layout)
-                self._add_greedy_swaps(
-                    front_layer, mapped_dag, current_layout, canonical_register
-                )
+                self._add_greedy_swaps(front_layer, mapped_dag, current_layout, canonical_register)
                 continue
 
             if execute_gate_list:
                 for node in execute_gate_list:
-                    self._apply_gate(
-                        mapped_dag, node, current_layout, canonical_register
-                    )
+                    self._apply_gate(mapped_dag, node, current_layout, canonical_register)
                     for successor in self._successors(node, dag):
                         self.required_predecessors[successor] -= 1
                         if self._is_resolved(successor):
@@ -240,22 +240,26 @@ class SabreSwap(TransformationPass):
                     if node.qargs:
                         self._reset_qubits_decay()
 
+                # Diagnostics
+                if do_expensive_logging:
+                    logger.debug(
+                        "free! %s",
+                        [
+                            (n.name if isinstance(n, DAGOpNode) else None, n.qargs)
+                            for n in execute_gate_list
+                        ],
+                    )
+                    logger.debug(
+                        "front_layer: %s",
+                        [
+                            (n.name if isinstance(n, DAGOpNode) else None, n.qargs)
+                            for n in front_layer
+                        ],
+                    )
+
                 ops_since_progress = []
                 extended_set = None
-
-                # debug check, does front_layer only contain 2Q gates?
-                # for node in front_layer:
-                #     if len(node.qargs) != 2:
-                #         print(
-                #             "Check 1. Front layer contains a node with len(qarg) != 2"
-                #         )
-
                 continue
-
-            # debug check, does front_layer only contain 2Q gates?
-            for node in front_layer:
-                if len(node.qargs) != 2:
-                    print("Check 2. Front layer contains a node with len(qarg) != 2")
 
             # After all free gates are exhausted, heuristically find
             # the best swap and insert it. When two or more swaps tie
@@ -272,9 +276,7 @@ class SabreSwap(TransformationPass):
                 swap_scores[swap_qubits] = score
             min_score = min(swap_scores.values())
             best_swaps = [k for k, v in swap_scores.items() if v == min_score]
-            best_swaps.sort(
-                key=lambda x: (self._bit_indices[x[0]], self._bit_indices[x[1]])
-            )
+            best_swaps.sort(key=lambda x: (self._bit_indices[x[0]], self._bit_indices[x[1]]))
             best_swap = rng.choice(best_swaps)
             swap_node = self._apply_gate(
                 mapped_dag,
@@ -295,9 +297,7 @@ class SabreSwap(TransformationPass):
             # Diagnostics
             if do_expensive_logging:
                 logger.debug("SWAP Selection...")
-                logger.debug(
-                    "extended_set: %s", [(n.name, n.qargs) for n in extended_set]
-                )
+                logger.debug("extended_set: %s", [(n.name, n.qargs) for n in extended_set])
                 logger.debug("swap scores: %s", swap_scores)
                 logger.debug("best swap: %s", best_swap)
                 logger.debug("qubits decay: %s", self.qubits_decay)

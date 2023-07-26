@@ -36,7 +36,7 @@ class ParallelSabreSwapMS(TransformationPass):
         self,
         coupling_map,
         heuristic="lookahead",
-        trials=20,
+        trials=6,
         basis_gate=None,
         parallel=True,
         seed=None,
@@ -51,8 +51,9 @@ class ParallelSabreSwapMS(TransformationPass):
         self.parallel = parallel
         self.fake_run = False
         self.use_fast_settings = use_fast_settings
-        self.anneal_index = 1.0
+        self.anneal_index = None
         self.fixed_aggression = fixed_aggression
+        self.atomic_routing = SabreSwapMS
 
         self.num_trials = trials
         if self.num_trials < 4:
@@ -88,40 +89,17 @@ class ParallelSabreSwapMS(TransformationPass):
 
         Args: fb_iter (float): fraction of current iteration to total iterations
 
-        In the layout pass, each forward/backwards mapping calls routing multiple times,
-        and keeps the one that minimized the cost function. Instead of keeping the min,
-        select randomly from the top % performers. Then for each successive iteration,
-        select from smaller % of the top scores until only keep the best score circuit.
+        In the layout pass, each forward/backwards mapping calls routing multiple times.
+        Use this index to adjust annealing parameters.
         """
         self.anneal_index = fb_iter
-
-    def _anneal_select_result(self, results):
-        """Select a result stochastically based on annealing parameters.
-
-        Args:
-            results (list): each a tuple with cost as the first element.
-
-        Returns:
-            tuple: selected result.
-        """
-        # Determine how many of the top results to consider, based on annealing.
-        # Early on, consider more results. Later, consider fewer.
-        n_top_results = max(int((0.5 - 0.5 * self.anneal_index) * len(results)), 1)
-
-        # Sort results by cost and select the top ones.
-        top_results = sorted(results, key=lambda x: x[0])[:n_top_results]
-
-        # Select one of the top results randomly.
-        random_index = np.random.randint(0, len(top_results))
-        return top_results[random_index]
 
     def _parallel_run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the pass in parallel."""
         self.dag = dag  # Store the dag can be accessed by run_single_trial
         with mp.Pool() as pool:
             results = pool.map(self._run_single_trial, range(self.num_trials))
-        # best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
-        best_score, best_result, best_property_set = self._anneal_select_result(results)
+        best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
         self.property_set["final_layout"] = best_property_set["final_layout"]
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
         self.property_set["best_score"] = best_score
@@ -131,15 +109,20 @@ class ParallelSabreSwapMS(TransformationPass):
         """Run the pass in serial."""
         self.dag = dag  # Store the dag can be accessed by run_single_trial
         results = [self._run_single_trial(i) for i in range(self.num_trials)]
-        # best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
-        best_score, best_result, best_property_set = self._anneal_select_result(results)
+        best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
         self.property_set["final_layout"] = best_property_set["final_layout"]
         self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
         self.property_set["best_score"] = best_score
         return best_result
 
     def _run_single_trial(self, trial_number):
-        """Run a single trial of the pass."""
+        """Run a single trial of the pass.
+
+        There are 2 contrasting modes of operation. First, using aggression levels which
+        are fixed for the entire trial. These define the threshold for accepting a
+        virtual-swap. Second, is annealing, where instead of using a fixed threshold, we
+        define a probability function for accepting any virtual-swap.
+        """
         if self.fixed_aggression is not None:
             aggression = self.fixed_aggression
         else:
@@ -150,11 +133,12 @@ class ParallelSabreSwapMS(TransformationPass):
                 aggression = 1
             elif trial_number < 0.85 * self.num_trials:  # 0.50 + 0.35
                 aggression = 2
-        trial = SabreSwapMS(
+        trial = self.atomic_routing(
             self.coupling_map,
             self.heuristic,
-            self.property_set,
+            property_set=self.property_set,
             aggression=aggression,
+            anneal_index=self.anneal_index,
             use_fast_settings=self.use_fast_settings,
         )
         trial.seed = self.seeds[trial_number]
@@ -183,13 +167,28 @@ class ParallelSabreSwapMS(TransformationPass):
 class SabreSwapMS(LegacySabreSwap):
     """V3 Rewrite of CNS SABRE Implementation."""
 
+    @staticmethod
+    def probabilistic_acceptance(temperature, cost0, cost1):
+        """Return the probability of accepting a virtual-swap.
+
+        Args:
+            temperature (float): Temperature of the system.
+            cost0 (float): Cost of the current layout.
+            cost1 (float): Cost of the trial layout.
+        """
+        if cost1 < cost0:
+            return 1.0
+        else:
+            return np.exp((cost0 - cost1) / temperature)
+
     def __init__(
         self,
         coupling_map,
-        property_set,
         heuristic="lookahead",
+        property_set=None,
         aggression=2,
         use_fast_settings=True,
+        anneal_index=None,
     ):
         """Initialize the pass.
 
@@ -199,11 +198,16 @@ class SabreSwapMS(LegacySabreSwap):
                 1: Only virtual-swaps that improve the cost.
                 2: Virtual-swaps that improve or do not change the cost.
                 3: All virtual-swaps are accepted.
+            anneal_index (float): defined as 1.0*fb_iter/self.max_iterations.
+                If anneal_index is None, then use the fixed aggression level.
+                Otherwise, use the annealing function to determine the probability
+                of accepting a virtual-swap.
         """
         # deepcopy for safety
         if aggression not in [0, 1, 2, 3]:
             raise ValueError("Invalid aggression level.")
         self.aggression = aggression
+        self.anneal_index = anneal_index
         self.property_set = copy.deepcopy(property_set)
         super().__init__(coupling_map, heuristic=heuristic)
         self.use_fast_settings = use_fast_settings
@@ -337,6 +341,36 @@ class SabreSwapMS(LegacySabreSwap):
         self.required_predecessors = self._front_required_predecessors
         return super()._obtain_extended_set(dag, front_layer)
 
+    def _accept_virtual_swap(self, sub_score, no_sub_score):
+        """Decide whether to accept a virtual swap based on aggression or annealing.
+
+        Args:
+            sub_score (float): Score after the virtual swap.
+            no_sub_score (float): Score without the virtual swap.
+
+        Returns:
+            bool: Whether to accept the virtual swap.
+        """
+        # If annealing is enabled
+        if self.anneal_index is not None:
+            # Calculate the "temperature" for simulated annealing
+            temperature = max(0.01, 1.0 - self.anneal_index)
+            print("temperature", temperature)
+
+            # Use the probabilistic accept function to decide whether to accept the swap
+            if (
+                self.probabilistic_acceptance(temperature, no_sub_score, sub_score)
+                > self.rng.random()
+            ):
+                return True
+        else:
+            # If annealing is not enabled, use the aggression level logic
+            return (
+                (self.aggression == 1 and sub_score < no_sub_score)
+                or (self.aggression == 2 and sub_score <= no_sub_score)
+                or (self.aggression == 3)
+            )
+
     def _process_intermediate_layer(self, dag):
         """Consider a mirror-gate substitution on every gate.
 
@@ -381,11 +415,7 @@ class SabreSwapMS(LegacySabreSwap):
             )
             self._considered_subs += 1
 
-            if (
-                (self.aggression == 1 and sub_score < no_sub_score)
-                or (self.aggression == 2 and sub_score <= no_sub_score)
-                or (self.aggression == 3)
-            ):
+            if self._accept_virtual_swap(sub_score, no_sub_score):
                 self._total_subs += 1
                 self._apply_gate(
                     self._mapped_dag,

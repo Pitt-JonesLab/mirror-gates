@@ -17,7 +17,7 @@ run with a custom routing pass
 
 import copy
 import logging
-
+from concurrent.futures import ProcessPoolExecutor as Pool
 import numpy as np
 import rustworkx as rx
 from qiskit._accelerate.nlayout import NLayout
@@ -80,8 +80,8 @@ class SabreLayout(TransformationPass):
         routing_pass=None,
         seed=None,
         max_iterations=4,
-        swap_trials=None,
-        layout_trials=None,
+        swap_trials=6,
+        layout_trials=6,
         skip_routing=False,
         anneal_routing=False,
     ):
@@ -157,96 +157,95 @@ class SabreLayout(TransformationPass):
         else:
             self.layout_trials = layout_trials
         self.skip_routing = skip_routing
-
-    def run(self, dag):
-        """Run the SabreLayout pass on `dag`.
-
-        Args:
-            dag (DAGCircuit): DAG to find layout for.
-
-        Returns:
-           DAGCircuit: The output dag if swap mapping was run
-            (otherwise the input dag is returned unmodified).
-
-        Raises:
-            TranspilerError: if dag wider than self.coupling_map
+    
+    def _run_single_layout_restart(self, trial_number):
         """
-        if len(dag.qubits) > self.coupling_map.size():
-            raise TranspilerError("More virtual qubits exist than physical.")
-
-        # Choose a random initial_layout.
-        if self.routing_pass is not None:
-            best_cost, best_layout = None, None
-
-            if self.seed is None:
-                seed = np.random.randint(0, np.iinfo(np.int32).max)
-            else:
-                seed = self.seed
-            rng = np.random.default_rng(seed)
-            
-
-            # Do forward-backward iterations.
-            # NOTE, moved outside the loop to avoid dag->circuit->dag conversion
-            self.routing_pass.fake_run = True # set to False when debugging
-            circ = dag_to_circuit(dag)
-            rev_circ = circ.reverse_ops()
-            
-            # tracking success from each independent layout trial 
-            self.property_set["layout_trials"] = []
-
-            for _ in range(self.layout_trials):
-                
-                # What if instead of random initial layout - consider DenseLayout for one attempt?
-                physical_qubits = rng.choice(
-                    self.coupling_map.size(), len(dag.qubits), replace=False
-                )
-                physical_qubits = rng.permutation(physical_qubits)
-                initial_layout = Layout(
-                    {q: dag.qubits[i] for i, q in enumerate(physical_qubits)}
-                )
-
-                for fb_iter in range(self.max_iterations):
-                    for _ in ("forward", "backward"):
-                        # print(initial_layout)
-
-                        if self.anneal_routing:
-                            self.routing_pass.set_anneal_params(1.0*fb_iter/self.max_iterations)
-
-                        pm = self._layout_and_route_passmanager(initial_layout)
-                        new_circ = pm.run(circ)
-                        # display(new_circ.decompose().draw('mpl', fold=-1))
-                        # print("\n\n\n\n")
-                        
-                        # Update initial layout and reverse the unmapped circuit.
-                        pass_final_layout = pm.property_set["final_layout"]
-                        final_layout = self._compose_layouts(
-                            initial_layout, pass_final_layout, new_circ.qregs
-                        )
-                        # print(final_layout)
-                        initial_layout = final_layout
-                        circ, rev_circ = rev_circ, circ
-
-                    # Diagnostics
-                    logger.info("new initial layout")
-                    logger.info(initial_layout)
-
-                # Need some logic to determine if this is the best layout thus far
-                # and if so save it
-                assert pm.property_set["best_score"] is not None
-                if best_cost is None or pm.property_set["best_score"] < best_cost:
-                    best_cost = pm.property_set["best_score"]
-                    best_layout = initial_layout
-                self.property_set["layout_trials"] += [pm.property_set["best_score"]]
-            
-            self.property_set["layout_trials_std"] = np.std(self.property_set["layout_trials"])
+        Run a single layout restart with a given seed.
         
-            for qreg in dag.qregs.values():
-                best_layout.add_register(qreg)
-            self.property_set["layout"] = best_layout
-            # print("debug best layout cost", best_cost)
-            self.routing_pass.fake_run = False
-            return dag
+        Args:
+            seed (int): The seed for the random number generator.
+        
+        Returns:
+            Tuple[int, Layout]: The cost and final layout of this restart.
+        """
+        # get parameters from class
+        dag = self._init_dag
+        circ = self._init_circ
+        rev_circ = self._init_rev_circ
 
+        # set up rng, unique to each parallel process
+        layout_iter_seed = self.seeds[trial_number]
+        rng = np.random.default_rng(layout_iter_seed)
+
+        # Create an initial layout.
+        physical_qubits = rng.choice(
+                self.coupling_map.size(), len(dag.qubits), replace=False
+            )
+        physical_qubits = rng.permutation(physical_qubits)
+        initial_layout = Layout(
+            {q: dag.qubits[i] for i, q in enumerate(physical_qubits)}
+        )
+
+        # Perform the forward-backward iterations.
+        for fb_iter in range(self.max_iterations):
+            for _ in ("forward", "backward"):
+
+                # TODO, investigate parameter space
+                if self.anneal_routing:
+                    self.routing_pass.set_anneal_params(1.0*fb_iter/self.max_iterations)
+
+                pm = self._layout_and_route_passmanager(initial_layout)
+                new_circ = pm.run(circ)
+
+                # Update initial layout and reverse the unmapped circuit.
+                pass_final_layout = pm.property_set["final_layout"]
+                final_layout = self._compose_layouts(
+                    initial_layout, pass_final_layout, new_circ.qregs
+                )
+                initial_layout = final_layout
+                circ, rev_circ = rev_circ, circ
+        
+        assert pm.property_set["best_score"] is not None
+        return pm.property_set["best_score"], initial_layout
+
+    def _run_with_custom_routing(self, dag):
+        # generate an array of seeds
+        seed = np.random.randint(0, np.iinfo(np.int32).max) if self.seed is None else self.seed
+        rng = np.random.default_rng(seed)
+        self.seeds = [rng.integers(0, 2**32 - 1) for _ in range(self.layout_trials)]
+
+        # set to False when debugging
+        # XXX debug mode maybe broken in parallel mode
+        self.routing_pass.fake_run = True 
+
+        # tracking success from each independent layout trial 
+        self.property_set["layout_trials"] = []
+
+        # Create a multiprocessing pool.
+        with Pool() as pool:
+            results = pool.map(self._run_single_layout_restart, range(self.layout_trials))
+        
+        # Select the layout with the lowest cost.
+        results = list(results)
+        best_cost, best_layout = min(results, key=lambda result: result[0])
+
+        # list of all iterations best scores
+        self.property_set["layout_trials"] = [result[0] for result in results]
+        self.property_set["layout_trials_std"] = np.std(self.property_set["layout_trials"])
+
+        # final clean up
+        # Set the best layout as the final layout.
+        for qreg in dag.qregs.values():
+            best_layout.add_register(qreg)
+        self.property_set["layout"] = best_layout
+
+        # makes so when do routing next will actually modify the mapped_dag
+        self.routing_pass.fake_run = False
+
+        return dag
+
+    def _run_with_rust_backend(self, dag):
+        """The original code from `run` when `self.routing_pass` is `None`."""
         dist_matrix = self.coupling_map.distance_matrix
         original_qubit_indices = {bit: index for index, bit in enumerate(dag.qubits)}
         original_clbit_indices = {bit: index for index, bit in enumerate(dag.clbits)}
@@ -326,6 +325,30 @@ class SabreLayout(TransformationPass):
                 layout_dict,
             )
         return mapped_dag
+
+    def run(self, dag):
+        """Run the SabreLayout pass on `dag`.
+
+        Args:
+            dag (DAGCircuit): DAG to find layout for.
+
+        Returns:
+           DAGCircuit: The output dag if swap mapping was run
+            (otherwise the input dag is returned unmodified).
+
+        Raises:
+            TranspilerError: if dag wider than self.coupling_map
+        """
+        if len(dag.qubits) > self.coupling_map.size():
+            raise TranspilerError("More virtual qubits exist than physical.")
+        if self.routing_pass is not None:
+            # use class attributes so can access these in each parallel process
+            self._init_dag = dag
+            self._init_circ = dag_to_circuit(dag)
+            self._init_rev_circ = self._init_circ.reverse_ops()
+            return self._run_with_custom_routing(dag)
+        else:
+            return self._run_with_rust_backend(dag)
 
     def _apply_layout_no_pass_manager(self, dag):
         """Apply and embed a layout into a dagcircuit without using a ``PassManager`` to
