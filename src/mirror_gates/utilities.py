@@ -37,7 +37,6 @@ class NoCheckUnitary(UnitaryGate, Gate):
         # Store instruction params
         Gate.__init__(self, "unitary", num_qubits, [data], label=label)
 
-        # TODO cached_property?
         self._monodromy_coord = None
 
 

@@ -21,7 +21,7 @@ from qiskit.transpiler.passes.layout.vf2_layout import VF2LayoutStopReason
 from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 from transpile_benchy.passmanagers.qiskit_baseline import QiskitStage
 
-from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS  # , SabreSwapMS
+from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS
 from mirror_gates.qiskit.sabre_layout_v2 import SabreLayout
 from mirror_gates.sqiswap_equiv import sel  # noqa: F401
 from mirror_gates.utilities import (
@@ -34,8 +34,9 @@ from mirror_gates.utilities import (
 )
 
 # 20,20 is what Qiskit uses for level 3
-DEFAULT_LAYOUT_TRIALS = 6  # (physical CPU_COUNT) #1,4,7 for debug
-DEFAULT_SWAP_TRIALS = 6
+DEFAULT_LAYOUT_TRIALS = 20  # (physical CPU_COUNT) #1,4,7 for debug
+DEFAULT_FB_ITERS = 4
+DEFAULT_SWAP_TRIALS = 20
 DEFAULT_SEED = 42
 
 
@@ -49,12 +50,14 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         logger=None,
         use_fast_settings=True,
         layout_trials=None,
+        fb_iters=None,
         swap_trials=None,
     ):
         """Initialize the pass manager."""
         super().__init__(name=self.name)
 
         self.layout_trials = layout_trials or DEFAULT_LAYOUT_TRIALS
+        self.fb_iters = fb_iters or DEFAULT_FB_ITERS
         self.swap_trials = swap_trials or DEFAULT_SWAP_TRIALS
         self.seed = DEFAULT_SEED
 
@@ -150,7 +153,7 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         return circuit
 
 
-# TODO: refactor to use plugins, will let combine main into Qiskit stages
+# TODO: refactor to use plugins?, will let combine main into Qiskit stages
 # Qiskit stage will use the custom layout and routing methods as plugins
 
 
@@ -169,6 +172,7 @@ class SabreMS(CustomLayoutRoutingManager):
         anneal_routing=False,
         fixed_aggression=None,
         layout_trials=None,
+        fb_iters=None,
         swap_trials=None,
     ):
         """Initialize the pass manager.
@@ -186,6 +190,7 @@ class SabreMS(CustomLayoutRoutingManager):
             logger=logger,
             use_fast_settings=use_fast_settings,
             layout_trials=layout_trials,
+            fb_iters=fb_iters,
             swap_trials=swap_trials,
         )
 
@@ -213,6 +218,7 @@ class SabreMS(CustomLayoutRoutingManager):
             layout_trials=self.layout_trials,
             seed=self.seed,
             anneal_routing=self.anneal_routing,
+            max_iterations=self.fb_iters,
         )
 
         # VF2Layout

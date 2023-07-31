@@ -88,6 +88,7 @@ class ParallelSabreSwapMS(TransformationPass):
         """Anneal configuration to escape local minima.
 
         Args: fb_iter (float): fraction of current iteration to total iterations
+            0 means high temperature, 1 means low temperature
 
         In the layout pass, each forward/backwards mapping calls routing multiple times.
         Use this index to adjust annealing parameters.
@@ -122,6 +123,14 @@ class ParallelSabreSwapMS(TransformationPass):
         are fixed for the entire trial. These define the threshold for accepting a
         virtual-swap. Second, is annealing, where instead of using a fixed threshold, we
         define a probability function for accepting any virtual-swap.
+
+        Args:
+            trial_number (int): The trial number.
+
+        Returns:
+            float: The score of the result.
+            DAGCircuit: The mapped DAG.
+            dict: The property set of the trial.
         """
         if self.fixed_aggression is not None:
             aggression = self.fixed_aggression
@@ -147,10 +156,19 @@ class ParallelSabreSwapMS(TransformationPass):
         return score, result, trial.property_set
 
     def _calculate_score(self, result: DAGCircuit, property_set) -> float:
-        """Calculate the score of a result."""
-        # assuming consolidation is done before SabreSwapMS
-        # NOTE, means CNS subs need to be single gate
-        # unroller = Unroller(["cx", "iswap", "u", "swap"])
+        """Calculate the score of a result.
+
+        Assumes that circuit preserves consolidation. Meaning, the circuit is
+        composed of no sequential 2Q gates. Following CNS substitution rules, this
+        means rather than inserting U+SWAP gates, we insert the mirror U' gates.
+
+        Args:
+            result (DAGCircuit): The result of the trial.
+            property_set (dict): The property set of the trial.
+
+        Returns:
+            float: The score of the result.
+        """
         if self.cost_function == "depth":
             self.cost_pass.property_set = property_set
             self.cost_pass.run(result)
@@ -158,6 +176,8 @@ class ParallelSabreSwapMS(TransformationPass):
             #       {self.cost_pass.property_set['monodromy_depth']}")
             return self.cost_pass.property_set["monodromy_depth"]
         else:  # basic SABRE
+            # use DoNothing pass to extract trial property_set from result
+            # FIXME is this necessary?
             do_nothing = DoNothing()
             do_nothing.property_set = property_set
             do_nothing.run(result)
@@ -179,7 +199,9 @@ class SabreSwapMS(LegacySabreSwap):
         if cost1 < cost0:
             return 1.0
         else:
-            return np.exp((cost0 - cost1) / temperature)
+            p = np.exp((cost0 - cost1) / temperature)
+            # print(f"Cost0: {cost0}, Cost1: {cost1}, p: {p}")
+            return p
 
     def __init__(
         self,
@@ -198,7 +220,7 @@ class SabreSwapMS(LegacySabreSwap):
                 1: Only virtual-swaps that improve the cost.
                 2: Virtual-swaps that improve or do not change the cost.
                 3: All virtual-swaps are accepted.
-            anneal_index (float): defined as 1.0*fb_iter/self.max_iterations.
+            anneal_index (float): defined as (0,1] progress through total iterations.
                 If anneal_index is None, then use the fixed aggression level.
                 Otherwise, use the annealing function to determine the probability
                 of accepting a virtual-swap.
@@ -341,6 +363,13 @@ class SabreSwapMS(LegacySabreSwap):
         self.required_predecessors = self._front_required_predecessors
         return super()._obtain_extended_set(dag, front_layer)
 
+    # TODO:
+    # tie-breaks when routing costs are equivalent could be broken using decomp cost
+    # if routing is equiv, then follows lower depth comes from cheaper unitary blocks
+    # however, for sqiswap gates this would only make a difference on QV circuits
+    # this is because if input circuits are entirely CPhase gates,
+    # then we know the original gate will be cheaper than mirror (for sqiswap basis)
+
     def _accept_virtual_swap(self, sub_score, no_sub_score):
         """Decide whether to accept a virtual swap based on aggression or annealing.
 
@@ -355,14 +384,13 @@ class SabreSwapMS(LegacySabreSwap):
         if self.anneal_index is not None:
             # Calculate the "temperature" for simulated annealing
             temperature = max(0.01, 1.0 - self.anneal_index)
-            print("temperature", temperature)
+            # print("temperature", temperature)
 
             # Use the probabilistic accept function to decide whether to accept the swap
-            if (
+            return (
                 self.probabilistic_acceptance(temperature, no_sub_score, sub_score)
                 > self.rng.random()
-            ):
-                return True
+            )
         else:
             # If annealing is not enabled, use the aggression level logic
             return (

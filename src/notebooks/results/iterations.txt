@@ -1,4 +1,0 @@
-qft_n8
-qft_n16
-qft_n32
-qft_n64

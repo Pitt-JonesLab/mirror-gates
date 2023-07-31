@@ -188,12 +188,12 @@ class SabreLayout(TransformationPass):
 
         # Perform the forward-backward iterations.
         for fb_iter in range(self.max_iterations):
+    
+            # TODO, investigate parameter space
+            if self.anneal_routing:
+                self.routing_pass.set_anneal_params((fb_iter+1.0)/self.max_iterations)
+            
             for _ in ("forward", "backward"):
-
-                # TODO, investigate parameter space
-                if self.anneal_routing:
-                    self.routing_pass.set_anneal_params(1.0*fb_iter/self.max_iterations)
-
                 pm = self._layout_and_route_passmanager(initial_layout)
                 new_circ = pm.run(circ)
 

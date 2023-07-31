@@ -28,27 +28,7 @@ iswap_replace.h(1)
 iswap_replace.cx(0, 1)
 iswap_replace.h(1)
 
-# generic cases without 1Q solutions yet
 
-# TODO generalize to arbitrary input
-# coverage = gates_to_coverage(iSwapGate().power(1 / 2))
-# coverage = None
-
-
-# TODO, we already know solutions to CX->iSWAP and iSWAP->CX
-# so we can just use those instead of the general case...?
-# def _get_node_cns_ansatz(node: DAGOpNode) -> Instruction:
-#     """Rather than appending a SWAP, use monodromy to build an ansatz."""
-#     raise NotImplementedError
-#     if len(node.qargs) != 2:
-#         raise ValueError("Only supports 2Q gates")
-#     target = UnitaryGate(node.op.to_matrix())
-#     return target_build_ansatz(coverage_set=coverage, target=target)
-
-
-# NOTE the reason I am not doing this is because I think for now it is better to
-# stay with CX and SWAP gates for qiskit to do more optimizations
-# but we could just input the exact unitary here if we wanted
 def _get_node_cns(node: DAGOpNode, use_fast_settings: bool = True) -> Instruction:
     """Get the CNS transformation for a given node."""
     if len(node.qargs) != 2:
@@ -59,7 +39,7 @@ def _get_node_cns(node: DAGOpNode, use_fast_settings: bool = True) -> Instructio
         new_op = SwapGate().to_matrix() @ node.op.to_matrix()
         new_unitary = NoCheckUnitary(new_op, label="u+swap")
 
-        # TODO
+        # TODO: calculate mirror coordinate directly
         # from monodromy.coordinates import mirror_monodromy_coordinate
         # _monodromy_coord = mirror_monodromy_coordinate(node.op._monodromy_coord)
         new_unitary._monodromy_coord = FastConsolidateBlocks.unitary_to_coordinate(
