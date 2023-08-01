@@ -15,3 +15,13 @@ qf21_n15
 multiplier_n15
 qft_n18
 sat_n11
+ising_model_16
+square_root_7
+hub_n18
+shor_n26
+qaoa_16
+dj_16
+qftentangled_16
+qpeexact_16
+ae_16
+vqe_16
