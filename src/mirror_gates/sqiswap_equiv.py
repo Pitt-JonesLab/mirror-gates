@@ -13,6 +13,8 @@ from qiskit.circuit.library.standard_gates import (
     iSwapGate,
 )
 
+# https://arxiv.org/pdf/2110.11537.pdf
+
 cx_decomp = QuantumCircuit(2)
 cx_decomp.u(np.pi / 2, -np.pi / 2, 0, 0)
 cx_decomp.u(np.pi / 2, np.pi, -np.pi / 2, 1)
@@ -24,19 +26,18 @@ cx_decomp.u(np.pi / 2, -np.pi / 2, -3 * np.pi / 2, 0)
 cx_decomp.u(0, -np.pi / 2, -np.pi, 1)
 sel.add_equivalence(CXGate(), cx_decomp)
 
-# FIXME dummy values
 swap_decomp = QuantumCircuit(2)
-swap_decomp.u(np.pi / 4, 0, np.pi / 2, 0)
-swap_decomp.u(np.pi / 4, 0, np.pi / 2, 1)
 swap_decomp.append(XXPlusYYGate(np.pi / 2, 0), [0, 1])
-swap_decomp.u(np.pi / 4, 0, np.pi / 2, 0)
-swap_decomp.u(np.pi / 4, 0, np.pi / 2, 1)
+swap_decomp.rx(-np.pi / 2, 0)
+swap_decomp.rx(-np.pi / 2, 1)
 swap_decomp.append(XXPlusYYGate(np.pi / 2), [0, 1])
-swap_decomp.u(np.pi / 4, 0, np.pi / 2, 0)
-swap_decomp.u(np.pi / 4, 0, np.pi / 2, 1)
+swap_decomp.rx(np.pi / 2, 0)
+swap_decomp.rx(np.pi / 2, 1)
+swap_decomp.ry(-np.pi / 2, 0)
+swap_decomp.ry(-np.pi / 2, 1)
 swap_decomp.append(XXPlusYYGate(np.pi / 2), [0, 1])
-swap_decomp.u(np.pi / 4, 0, np.pi / 2, 0)
-swap_decomp.u(np.pi / 4, 0, np.pi / 2, 1)
+swap_decomp.ry(np.pi / 2, 0)
+swap_decomp.ry(np.pi / 2, 1)
 sel.add_equivalence(SwapGate(), swap_decomp)
 
 # bb = transpile(

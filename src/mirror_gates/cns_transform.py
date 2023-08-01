@@ -7,7 +7,7 @@ from qiskit.circuit.library import SwapGate
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.extensions import UnitaryGate
 
-from mirror_gates.utilities import FastConsolidateBlocks, NoCheckUnitary
+from mirror_gates.fast_unitary import FastConsolidateBlocks, NoCheckUnitary
 
 # Global CNS Transformations
 # cx -> iswap

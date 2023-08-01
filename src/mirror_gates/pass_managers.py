@@ -22,11 +22,11 @@ from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 from transpile_benchy.passmanagers.qiskit_baseline import QiskitStage
 
 from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS
+from mirror_gates.fast_unitary import FastConsolidateBlocks
 from mirror_gates.qiskit.sabre_layout_v2 import SabreLayout
 from mirror_gates.sqiswap_equiv import sel  # noqa: F401
 from mirror_gates.utilities import (
     AssignAllParameters,
-    FastConsolidateBlocks,
     RemoveAllMeasurements,
     RemoveIGates,
     RemoveSwapGates,

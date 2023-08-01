@@ -11,11 +11,10 @@ qf21_n15
 multiplier_n15
 qft_n18
 sat_n11
-square_root_n7
-hub_n18
 portfolioqaoa_n16
 dj_16
 qftentangled_16
 qpeexact_16
 ae_16
 vqe_16
+qv_n16
