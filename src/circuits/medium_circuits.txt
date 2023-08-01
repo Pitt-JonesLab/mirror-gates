@@ -1,11 +1,7 @@
-dnn_n16
-cat_state_n22
 ghz_state_n23
 bv_n14
-wstate_n27
 qec9xz_n17
 bv_n19
-multiply_n13
 seca_n11
 qram_n20
 knn_n25
@@ -15,11 +11,9 @@ qf21_n15
 multiplier_n15
 qft_n18
 sat_n11
-ising_model_16
-square_root_7
+square_root_n7
 hub_n18
-shor_n26
-qaoa_16
+portfolioqaoa_n16
 dj_16
 qftentangled_16
 qpeexact_16
