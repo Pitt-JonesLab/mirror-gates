@@ -1,7 +1,7 @@
 """Legacy plugin for SabreSwap."""
 from typing import Optional
 from mirror_gates.qiskit.sabre_swap import SabreSwap as LegacySabreSwap
-from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS
+from mirror_gates.mirage import ParallelMirage
 from mirror_gates.sabre_layout_v2 import SabreLayout as LegacySabreLayout
 from qiskit.transpiler.passmanager import PassManager
 from qiskit.transpiler.passmanager_config import PassManagerConfig
@@ -20,7 +20,7 @@ class LegacySabrePlugin(PassManagerStagePlugin):
         """Return the routing stage pass manager."""
         # somewhat hacky use of atomic_routing attribute
         # we do this because LegacySabreSwap does not have trials parameter
-        routing = ParallelSabreSwapMS(pass_manager_config.coupling_map)
+        routing = ParallelMirage(pass_manager_config.coupling_map)
         routing.atomic_routing = LegacySabreSwap
         return common.generate_routing_passmanager(
                 routing,
@@ -38,7 +38,7 @@ class LegacySabreLayoutPlugin(PassManagerStagePlugin):
                      optimization_level: int = None) -> PassManager:
         """Return the layout stage pass manager."""
         layout_pm = PassManager()
-        routing = ParallelSabreSwapMS(pass_manager_config.coupling_map, heuristic="basic")
+        routing = ParallelMirage(pass_manager_config.coupling_map, heuristic="basic")
         routing.atomic_routing = LegacySabreSwap
         layout_pm.append(LegacySabreLayout(pass_manager_config.coupling_map, routing_pass=routing))
         layout_pm += common.generate_embed_passmanager(pass_manager_config.coupling_map)

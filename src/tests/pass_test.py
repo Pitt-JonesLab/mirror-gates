@@ -13,7 +13,7 @@ from qiskit.transpiler import PassManager
 from qiskit.transpiler.coupling import CouplingMap
 
 # from virtual_swap.deprecated.cns_sabre_v2 import CNS_SabreSwap_V2
-from mirror_gates.cns_sabre_v3 import SabreSwapMS
+from mirror_gates.mirage import Mirage
 
 
 # Function to build circuits.
@@ -32,7 +32,7 @@ def build_circuits():
 def transformation_passes():
     """Define a list of transformation passes for testing."""
     coupling_map = CouplingMap.from_grid(2, 2)
-    passes = [SabreSwapMS(coupling_map)]
+    passes = [Mirage(coupling_map)]
     return passes
 
 

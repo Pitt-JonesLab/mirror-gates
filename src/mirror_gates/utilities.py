@@ -129,7 +129,7 @@ class SubsMetric(MetricInterface):
         """Return the pass associated with this metric.
 
         NOTE: this is a dummy pass, it does nothing.
-        This is because the metric has been calculated in SabreMS.
+        This is because the metric has been calculated in Mirage.
         We are building a metric just so we know to save the result.
         """
         return DoNothing()

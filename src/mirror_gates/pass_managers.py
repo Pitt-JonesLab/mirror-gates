@@ -21,8 +21,8 @@ from qiskit.transpiler.passes.layout.vf2_layout import VF2LayoutStopReason
 from transpile_benchy.passmanagers.abc_runner import CustomPassManager
 from transpile_benchy.passmanagers.qiskit_baseline import QiskitStage
 
-from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS
 from mirror_gates.fast_unitary import FastConsolidateBlocks
+from mirror_gates.mirage import ParallelMirage
 from mirror_gates.sabre_layout_v2 import SabreLayout
 from mirror_gates.sqiswap_equiv import sel  # noqa: F401
 from mirror_gates.utilities import (
@@ -157,8 +157,8 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
 # Qiskit stage will use the custom layout and routing methods as plugins
 
 
-class SabreMS(CustomLayoutRoutingManager):
-    """SabreMS pass manager."""
+class Mirage(CustomLayoutRoutingManager):
+    """Mirage pass manager."""
 
     def __init__(
         self,
@@ -180,7 +180,7 @@ class SabreMS(CustomLayoutRoutingManager):
         Use parallel=False for debugging.
         """
         self.parallel = parallel
-        self.name = name or "SABREMS"
+        self.name = name or "Mirage"
         self.cost_function = cost_function
         self.anneal_routing = anneal_routing
         self.fixed_aggression = fixed_aggression
@@ -195,12 +195,12 @@ class SabreMS(CustomLayoutRoutingManager):
         )
 
     def build_main_stage(self, **kwargs):
-        """Run SabreMS."""
+        """Run Mirage."""
         pm = PassManager()
         pm.property_set = kwargs.get("property_set", {})
 
-        # Create the SabreMS pass
-        routing_method = ParallelSabreSwapMS(
+        # Create the Mirage pass
+        routing_method = ParallelMirage(
             coupling_map=self.coupling,
             trials=self.swap_trials,
             basis_gate=self.basis_gate,
@@ -233,7 +233,7 @@ class SabreMS(CustomLayoutRoutingManager):
                 is not VF2LayoutStopReason.SOLUTION_FOUND
             )
 
-        # Append the SabreMS pass with the condition
+        # Append the Mirage pass with the condition
         pm.append(layout_method, condition=vf2_not_converged)
         pm.append(FullAncillaAllocation(self.coupling))
         pm.append(EnlargeWithAncilla())

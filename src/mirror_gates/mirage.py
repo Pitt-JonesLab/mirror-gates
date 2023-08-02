@@ -29,8 +29,8 @@ DECAY_RATE = 0.001  # Decay coefficient for penalizing serial swaps.
 DECAY_RESET_INTERVAL = 5  # How often to reset all decay rates to 1.
 
 
-class ParallelSabreSwapMS(TransformationPass):
-    """Parallel version of SabreSwapMS."""
+class ParallelMirage(TransformationPass):
+    """Parallel version of Mirage."""
 
     def __init__(
         self,
@@ -53,11 +53,11 @@ class ParallelSabreSwapMS(TransformationPass):
         self.use_fast_settings = use_fast_settings
         self.anneal_index = None
         self.fixed_aggression = fixed_aggression
-        self.atomic_routing = SabreSwapMS
+        self.atomic_routing = Mirage
 
         self.num_trials = trials
         if self.num_trials < 4:
-            raise TranspilerError("Use at least 4 trials for SabreSwapMS.")
+            raise TranspilerError("Use at least 4 trials for Mirage.")
 
         # NOTE, normally is required but we make sure is in the pre-stage
         # this is so we don't have to call this function in each layout_trial
@@ -176,7 +176,7 @@ class ParallelSabreSwapMS(TransformationPass):
             return do_nothing.property_set["required_swaps"]
 
 
-class SabreSwapMS(LegacySabreSwap):
+class Mirage(LegacySabreSwap):
     """V3 Rewrite of CNS SABRE Implementation."""
 
     @staticmethod
@@ -553,7 +553,7 @@ class SabreSwapMS(LegacySabreSwap):
         if not self.fake_run and any(
             [op.name == "swap" for op in self._mapped_dag.front_layer()]
         ):
-            raise TranspilerError("SabreSwapMS begins with a SWAP.")
+            raise TranspilerError("Mirage begins with a SWAP.")
 
         # write accepted_subs as fraction of total number of 2Q gates considered
         if self._considered_subs == 0:
