@@ -11,4 +11,3 @@ portfolioqaoa_n16
 qftentangled_16
 qpeexact_16
 ae_16
-qv_n16
