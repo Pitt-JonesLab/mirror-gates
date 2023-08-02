@@ -77,12 +77,25 @@ class ParallelSabreSwapMS(TransformationPass):
 
     def run(self, dag: DAGCircuit) -> DAGCircuit:
         """Run the pass on `dag`."""
-        if self.parallel:
-            mapped_dag = self._parallel_run(dag)
-        else:
-            mapped_dag = self._serial_run(dag)
+        # set dag as attribute for use in _run_single_trial
+        self.dag = dag
 
-        return mapped_dag if not self.fake_run else dag
+        # run the pass over trials
+        if self.parallel:
+            with mp.Pool() as pool:
+                results = pool.map(self._run_single_trial, range(self.num_trials))
+        else:
+            results = map(self._run_single_trial, range(self.num_trials))
+
+        # find the best result
+        best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
+
+        # handle property_set to get best attributes
+        self.property_set["final_layout"] = best_property_set["final_layout"]
+        self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
+        self.property_set["best_score"] = best_score
+
+        return best_result if not self.fake_run else dag
 
     def set_anneal_params(self, fb_iter: float):
         """Anneal configuration to escape local minima.
@@ -94,27 +107,6 @@ class ParallelSabreSwapMS(TransformationPass):
         Use this index to adjust annealing parameters.
         """
         self.anneal_index = fb_iter
-
-    def _parallel_run(self, dag: DAGCircuit) -> DAGCircuit:
-        """Run the pass in parallel."""
-        self.dag = dag  # Store the dag can be accessed by run_single_trial
-        with mp.Pool() as pool:
-            results = pool.map(self._run_single_trial, range(self.num_trials))
-        best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
-        self.property_set["final_layout"] = best_property_set["final_layout"]
-        self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
-        self.property_set["best_score"] = best_score
-        return best_result
-
-    def _serial_run(self, dag: DAGCircuit) -> DAGCircuit:
-        """Run the pass in serial."""
-        self.dag = dag  # Store the dag can be accessed by run_single_trial
-        results = [self._run_single_trial(i) for i in range(self.num_trials)]
-        best_score, best_result, best_property_set = min(results, key=lambda x: x[0])
-        self.property_set["final_layout"] = best_property_set["final_layout"]
-        self.property_set["accepted_subs"] = best_property_set["accepted_subs"]
-        self.property_set["best_score"] = best_score
-        return best_result
 
     def _run_single_trial(self, trial_number):
         """Run a single trial of the pass.

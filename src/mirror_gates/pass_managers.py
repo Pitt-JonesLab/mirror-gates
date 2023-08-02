@@ -23,7 +23,7 @@ from transpile_benchy.passmanagers.qiskit_baseline import QiskitStage
 
 from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS
 from mirror_gates.fast_unitary import FastConsolidateBlocks
-from mirror_gates.qiskit.sabre_layout_v2 import SabreLayout
+from mirror_gates.sabre_layout_v2 import SabreLayout
 from mirror_gates.sqiswap_equiv import sel  # noqa: F401
 from mirror_gates.utilities import (
     AssignAllParameters,
@@ -219,6 +219,7 @@ class SabreMS(CustomLayoutRoutingManager):
             seed=self.seed,
             anneal_routing=self.anneal_routing,
             max_iterations=self.fb_iters,
+            parallel=False,  # XXX turn off because of BrokenPipeError, not sure why yet
         )
 
         # VF2Layout

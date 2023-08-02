@@ -18,6 +18,7 @@ run with a custom routing pass
 import copy
 import logging
 from concurrent.futures import ProcessPoolExecutor as Pool
+
 import numpy as np
 import rustworkx as rx
 from qiskit._accelerate.nlayout import NLayout
@@ -57,11 +58,11 @@ class SabreLayout(TransformationPass):
     circuit will have ancilla qubits allocated for unused qubits on the coupling map
     and the qubits will be reordered to match the mapped physical qubits) and then
     routing will be applied (inserting :class:`~.SwapGate`s to account for limited
-    connectivity). This is unlike most other layout passes which are :class:`~.AnalysisPass`
-    objects and just find an initial layout and set that on the property set. This is
-    done because by default the pass will run parallel seed trials with different random
-    seeds for selecting the random initial layout and then selecting the routed output
-    which results in the least number of swap gates needed.
+    connectivity). This is unlike most other layout passes which are
+    :class:`~.AnalysisPass` objects and just find an initial layout and set that on the
+    property set. This is done because by default the pass will run parallel seed trials
+    with different random seeds for selecting the random initial layout and then
+    selecting the routed output which results in the least number of swap gates needed.
 
     You can use the ``routing_pass`` argument to have this pass operate as a typical
     layout pass. When specified this will use the specified routing pass to select an
@@ -84,8 +85,9 @@ class SabreLayout(TransformationPass):
         layout_trials=6,
         skip_routing=False,
         anneal_routing=False,
+        parallel=True,
     ):
-        """SabreLayout initializer.
+        """Sabrelayout initializer.
 
         Args:
             coupling_map (Coupling): directed graph representing a coupling map.
@@ -115,11 +117,12 @@ class SabreLayout(TransformationPass):
                 physical CPUs will be used as the default value. This option is
                 mutually exclusive with the ``routing_pass`` argument and an error
                 will be raised if both are used.
-            skip_routing (bool): If this is set ``True`` and ``routing_pass`` is not used
-                then routing will not be applied to the output circuit.  Only the layout
-                will be returned in the property set. This is a tradeoff to run custom
-                routing with multiple layout trials, as using this option will cause
-                SabreLayout to run the routing stage internally but not use that result.
+            skip_routing (bool): If this is set ``True`` and ``routing_pass`` is not
+                used then routing will not be applied to the output circuit.  Only the
+                layout will be returned in the property set. This is a tradeoff to run
+                custom routing with multiple layout trials, as using this option will
+                cause SabreLayout to run the routing stage internally but not use that
+                result.
 
         Raises:
             TranspilerError: If both ``routing_pass`` and ``swap_trials`` or
@@ -140,14 +143,17 @@ class SabreLayout(TransformationPass):
             )
 
         # XXX this is allowed now, removed the check
-        # if routing_pass is not None and (swap_trials is not None or layout_trials is not None):
-        #     raise TranspilerError("Both routing_pass and swap_trials can't be set at the same time")
+        # if routing_pass is not None and (swap_trials is not None \
+        #                                   or layout_trials is not None):
+        #     raise TranspilerError("
+        #       Both routing_pass and swap_trials can't be set at the same time")
 
         self.routing_pass = routing_pass
         self.anneal_routing = anneal_routing
         self.seed = seed
         self.max_iterations = max_iterations
         self.trials = swap_trials
+        self.parallel = parallel
         if swap_trials is None:
             self.swap_trials = CPU_COUNT
         else:
@@ -157,14 +163,13 @@ class SabreLayout(TransformationPass):
         else:
             self.layout_trials = layout_trials
         self.skip_routing = skip_routing
-    
+
     def _run_single_layout_restart(self, trial_number):
-        """
-        Run a single layout restart with a given seed.
-        
+        """Run a single layout restart with a given seed.
+
         Args:
             seed (int): The seed for the random number generator.
-        
+
         Returns:
             Tuple[int, Layout]: The cost and final layout of this restart.
         """
@@ -179,8 +184,8 @@ class SabreLayout(TransformationPass):
 
         # Create an initial layout.
         physical_qubits = rng.choice(
-                self.coupling_map.size(), len(dag.qubits), replace=False
-            )
+            self.coupling_map.size(), len(dag.qubits), replace=False
+        )
         physical_qubits = rng.permutation(physical_qubits)
         initial_layout = Layout(
             {q: dag.qubits[i] for i, q in enumerate(physical_qubits)}
@@ -188,11 +193,12 @@ class SabreLayout(TransformationPass):
 
         # Perform the forward-backward iterations.
         for fb_iter in range(self.max_iterations):
-    
             # TODO, investigate parameter space
             if self.anneal_routing:
-                self.routing_pass.set_anneal_params((fb_iter+1.0)/self.max_iterations)
-            
+                self.routing_pass.set_anneal_params(
+                    (fb_iter + 1.0) / self.max_iterations
+                )
+
             for _ in ("forward", "backward"):
                 pm = self._layout_and_route_passmanager(initial_layout)
                 new_circ = pm.run(circ)
@@ -204,34 +210,45 @@ class SabreLayout(TransformationPass):
                 )
                 initial_layout = final_layout
                 circ, rev_circ = rev_circ, circ
-        
+
         assert pm.property_set["best_score"] is not None
         return pm.property_set["best_score"], initial_layout
 
     def _run_with_custom_routing(self, dag):
         # generate an array of seeds
-        seed = np.random.randint(0, np.iinfo(np.int32).max) if self.seed is None else self.seed
+        seed = (
+            np.random.randint(0, np.iinfo(np.int32).max)
+            if self.seed is None
+            else self.seed
+        )
         rng = np.random.default_rng(seed)
         self.seeds = [rng.integers(0, 2**32 - 1) for _ in range(self.layout_trials)]
 
         # set to False when debugging
         # XXX debug mode maybe broken in parallel mode
-        self.routing_pass.fake_run = True 
+        self.routing_pass.fake_run = True
 
-        # tracking success from each independent layout trial 
+        # tracking success from each independent layout trial
         self.property_set["layout_trials"] = []
 
-        # Create a multiprocessing pool.
-        with Pool() as pool:
-            results = pool.map(self._run_single_layout_restart, range(self.layout_trials))
-        
+        if self.parallel:
+            # Create a multiprocessing pool.
+            with Pool() as pool:
+                results = pool.map(
+                    self._run_single_layout_restart, range(self.layout_trials)
+                )
+        else:
+            results = map(self._run_single_layout_restart, range(self.layout_trials))
+
         # Select the layout with the lowest cost.
         results = list(results)
         best_cost, best_layout = min(results, key=lambda result: result[0])
 
         # list of all iterations best scores
         self.property_set["layout_trials"] = [result[0] for result in results]
-        self.property_set["layout_trials_std"] = np.std(self.property_set["layout_trials"])
+        self.property_set["layout_trials_std"] = np.std(
+            self.property_set["layout_trials"]
+        )
 
         # final clean up
         # Set the best layout as the final layout.
@@ -245,7 +262,7 @@ class SabreLayout(TransformationPass):
         return dag
 
     def _run_with_rust_backend(self, dag):
-        """The original code from `run` when `self.routing_pass` is `None`."""
+        """Do the original `run` when `self.routing_pass` is `None`."""
         dist_matrix = self.coupling_map.distance_matrix
         original_qubit_indices = {bit: index for index, bit in enumerate(dag.qubits)}
         original_clbit_indices = {bit: index for index, bit in enumerate(dag.clbits)}
@@ -351,7 +368,9 @@ class SabreLayout(TransformationPass):
             return self._run_with_rust_backend(dag)
 
     def _apply_layout_no_pass_manager(self, dag):
-        """Apply and embed a layout into a dagcircuit without using a ``PassManager`` to
+        """Apply the layout to the dag without using a pass manager.
+
+        Apply and embed a layout into a dagcircuit without using a ``PassManager`` to
         avoid circuit<->dag conversion.
         """
         ancilla_pass = FullAncillaAllocation(self.coupling_map)
@@ -381,12 +400,13 @@ class SabreLayout(TransformationPass):
         return pm
 
     def _compose_layouts(self, initial_layout, pass_final_layout, qregs):
-        """Return the real final_layout resulting from the composition of an
-        initial_layout with the final_layout reported by a pass.
+        """Return the real final_layout.
 
-        The routing passes internally start with a trivial layout, as the layout gets
-        applied to the circuit prior to running them. So the "final_layout" they report
-        must be amended to account for the actual initial_layout that was selected.
+        Return the real final_layout resulting from the composition of an initial_layout
+        with the final_layout reported by a pass. The routing passes internally start
+        with a trivial layout, as the layout gets applied to the circuit prior to
+        running them. So the "final_layout" they report must be amended to account for
+        the actual initial_layout that was selected.
         """
         trivial_layout = Layout.generate_trivial_layout(*qregs)
         qubit_map = Layout.combine_into_edge_map(initial_layout, trivial_layout)

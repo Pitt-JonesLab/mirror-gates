@@ -14,3 +14,18 @@ hub_n18
 # idk
 
 shor_n4
+
+# no swaps
+
+vqe_16
+ghz_state_n23
+
+# too small
+
+dj_16
+bv_n14
+bv_n19
+
+# too similar
+
+qf21_n15

@@ -2,7 +2,7 @@
 from typing import Optional
 from mirror_gates.qiskit.sabre_swap import SabreSwap as LegacySabreSwap
 from mirror_gates.cns_sabre_v3 import ParallelSabreSwapMS
-from mirror_gates.qiskit.sabre_layout_v2 import SabreLayout as LegacySabreLayout
+from mirror_gates.sabre_layout_v2 import SabreLayout as LegacySabreLayout
 from qiskit.transpiler.passmanager import PassManager
 from qiskit.transpiler.passmanager_config import PassManagerConfig
 from qiskit.transpiler.preset_passmanagers.plugin import PassManagerStagePlugin
