@@ -128,11 +128,11 @@ class ParallelMirage(TransformationPass):
             aggression = self.fixed_aggression
         else:
             aggression = 3  # Default aggression level
-            if trial_number < 0.15 * self.num_trials:
+            if trial_number < 0.05 * self.num_trials:
                 aggression = 0
-            elif trial_number < 0.50 * self.num_trials:  # 0.15 + 0.35
+            elif trial_number < 0.50 * self.num_trials:  # 0.05 + 0.45
                 aggression = 1
-            elif trial_number < 0.85 * self.num_trials:  # 0.50 + 0.35
+            elif trial_number < 0.95 * self.num_trials:  # 0.50 + 0.45
                 aggression = 2
         trial = self.atomic_routing(
             self.coupling_map,

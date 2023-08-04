@@ -174,6 +174,7 @@ class Mirage(CustomLayoutRoutingManager):
         layout_trials=None,
         fb_iters=None,
         swap_trials=None,
+        no_vf2=False,
     ):
         """Initialize the pass manager.
 
@@ -184,6 +185,7 @@ class Mirage(CustomLayoutRoutingManager):
         self.cost_function = cost_function
         self.anneal_routing = anneal_routing
         self.fixed_aggression = fixed_aggression
+        self.no_vf2 = no_vf2
         super().__init__(
             coupling,
             cx_basis=cx_basis,
@@ -223,11 +225,17 @@ class Mirage(CustomLayoutRoutingManager):
         )
 
         # VF2Layout
-        pm.append(
-            VF2Layout(coupling_map=self.coupling, seed=self.seed, call_limit=int(3e7))
-        )
+        if not self.no_vf2:
+            pm.append(
+                VF2Layout(
+                    coupling_map=self.coupling, seed=self.seed, call_limit=int(3e7)
+                )
+            )
 
         def vf2_not_converged(property_set):
+            """Condition for VF2Layout."""
+            if self.no_vf2:
+                return True
             return (
                 property_set["VF2Layout_stop_reason"]
                 is not VF2LayoutStopReason.SOLUTION_FOUND

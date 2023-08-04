@@ -206,4 +206,13 @@ class FastConsolidateBlocks(TransformationPass):
         # print(f"hits: {self.hits}/{len(blocks)}")
         # self.property_set["hits"] = self.hits/len(blocks)
 
+        # TODO fix
+        # very few circuits have this issue
+        # monkey patch https://github.com/Pitt-JonesLab/mirror-gates/issues/13
+        # if have any left over runs of 1Q gates that never get consoldiated into a 2Q
+        # then just remove them - won't impact any of the metrics
+        for node in dag.topological_op_nodes():
+            if len(node.qargs) == 1:
+                dag.remove_op_node(node)
+
         return dag
