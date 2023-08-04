@@ -221,7 +221,7 @@ class Mirage(CustomLayoutRoutingManager):
             seed=self.seed,
             anneal_routing=self.anneal_routing,
             max_iterations=self.fb_iters,
-            parallel=False,  # XXX turn off because of BrokenPipeError, not sure why yet
+            # parallel=False,  # XXX turn off because of BrokenPipeError
         )
 
         # VF2Layout
