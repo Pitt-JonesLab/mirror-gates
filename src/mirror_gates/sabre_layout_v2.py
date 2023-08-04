@@ -17,7 +17,9 @@ run with a custom routing pass
 
 import copy
 import logging
-from concurrent.futures import ProcessPoolExecutor as Pool
+
+# from concurrent.futures import ProcessPoolExecutor as Pool
+from concurrent.futures import ProcessPoolExecutor, TimeoutError, as_completed
 
 import numpy as np
 import rustworkx as rx
@@ -231,14 +233,35 @@ class SabreLayout(TransformationPass):
         # tracking success from each independent layout trial
         self.property_set["layout_trials"] = []
 
+        # if self.parallel:
+        #     # Create a multiprocessing pool.
+        #     with Pool() as pool:
+        #         results = pool.map(
+        #             self._run_single_layout_restart, range(self.layout_trials)
+        #         )
+        # else:
+        #     results = map(self._run_single_layout_restart, range(self.layout_trials))
+
         if self.parallel:
             # Create a multiprocessing pool.
-            with Pool() as pool:
-                results = pool.map(
-                    self._run_single_layout_restart, range(self.layout_trials)
-                )
+            with ProcessPoolExecutor() as pool:
+                futures = {
+                    pool.submit(self._run_single_layout_restart, i)
+                    for i in range(self.layout_trials)
+                }
+                results = []
+                for future in as_completed(futures):
+                    try:
+                        result = future.result(
+                            timeout=6000
+                        )  # Timeout increased to 6000 seconds
+                        results.append(result)
+                    except TimeoutError:
+                        print("A layout trial took too long and was skipped.")
         else:
-            results = map(self._run_single_layout_restart, range(self.layout_trials))
+            results = list(
+                map(self._run_single_layout_restart, range(self.layout_trials))
+            )
 
         # Select the layout with the lowest cost.
         results = list(results)
