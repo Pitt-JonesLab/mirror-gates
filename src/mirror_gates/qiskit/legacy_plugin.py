@@ -32,7 +32,7 @@ class LegacySabreLayoutPlugin(PassManagerStagePlugin):
     """Version of SabreLayout that has parallel layout trials
     
     Default behvaior is to have no layout trials when given a custom routing method.
-    We use this so that LegacySabre can run with 20 layout trials.
+    We use this so that LegacySabre can run with multiple layout trials.
     """
     def pass_manager(self, pass_manager_config: PassManagerConfig, 
                      optimization_level: int = None) -> PassManager:

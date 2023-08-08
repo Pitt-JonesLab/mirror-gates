@@ -191,6 +191,8 @@ class Mirage(LegacySabreSwap):
         if cost1 < cost0:
             return 1.0
         else:
+            cost0 /= cost0
+            cost1 /= cost0
             p = np.exp((cost0 - cost1) / temperature)
             # print(f"Cost0: {cost0}, Cost1: {cost1}, p: {p}")
             return p
@@ -372,24 +374,43 @@ class Mirage(LegacySabreSwap):
         Returns:
             bool: Whether to accept the virtual swap.
         """
-        # If annealing is enabled
-        if self.anneal_index is not None:
+        if self.anneal_index is None:
+            sa_bool = False
+        else:
             # Calculate the "temperature" for simulated annealing
             temperature = max(0.01, 1.0 - self.anneal_index)
             # print("temperature", temperature)
 
             # Use the probabilistic accept function to decide whether to accept the swap
-            return (
+            sa_bool = (
                 self.probabilistic_acceptance(temperature, no_sub_score, sub_score)
                 > self.rng.random()
             )
-        else:
-            # If annealing is not enabled, use the aggression level logic
-            return (
-                (self.aggression == 1 and sub_score < no_sub_score)
-                or (self.aggression == 2 and sub_score <= no_sub_score)
-                or (self.aggression == 3)
-            )
+
+        return (
+            sa_bool
+            or (self.aggression == 1 and sub_score < no_sub_score)
+            or (self.aggression == 2 and sub_score <= no_sub_score)
+            or (self.aggression == 3)
+        )
+        # # If annealing is enabled
+        # if self.anneal_index is not None:
+        #     # Calculate the "temperature" for simulated annealing
+        #     temperature = max(0.01, 1.0 - self.anneal_index)
+        #     # print("temperature", temperature)
+
+        #     # Use the probabilistic accept func to decide whether to accept the swap
+        #     return (
+        #         self.probabilistic_acceptance(temperature, no_sub_score, sub_score)
+        #         > self.rng.random()
+        #     )
+        # else:
+        #     # If annealing is not enabled, use the aggression level logic
+        #     return (
+        #         (self.aggression == 1 and sub_score < no_sub_score)
+        #         or (self.aggression == 2 and sub_score <= no_sub_score)
+        #         or (self.aggression == 3)
+        #     )
 
     def _process_intermediate_layer(self, dag):
         """Consider a mirror-gate substitution on every gate.

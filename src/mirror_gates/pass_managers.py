@@ -254,9 +254,9 @@ class Mirage(CustomLayoutRoutingManager):
 class QiskitLevel3(CustomLayoutRoutingManager):
     """Qiskit level 3 pass manager."""
 
-    def __init__(self, coupling, cx_basis=False, python_sabre=False):
+    def __init__(self, coupling, cx_basis=False, python_sabre=False, name=None):
         """Initialize the pass manager."""
-        self.name = "Qiskit"
+        self.name = name or "Qiskit"
         self.python_sabre = python_sabre
         super().__init__(coupling, cx_basis=cx_basis)
 
