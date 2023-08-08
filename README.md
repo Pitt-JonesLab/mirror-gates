@@ -13,24 +13,20 @@ Traditionally, transpilation in quantum computing treats layout and routing as s
 
 ## Key Features
 
-_TODO: Insert the main algorithm or function code snippet here_
+Mirage algorithm defined in `src/mirror_gates/mirage.py`
+
+![image](https://github.com/Pitt-JonesLab/mirror-gates/assets/47376937/08408089-561a-4799-9904-a2637d829edd)
 
 ## Getting Started
 
-_TODO: Insert instructions on how to install and run the project, including any dependencies here_
+Run `make init` to setup python environment. The main pass manager is defined in `src/mirror_gates/pass_managers.py`. Experiments are defined in `src/notebooks/results`
 
 ## Results & Comparisons
 
 Our experiments demonstrate significant reductions in circuit depth and swap count compared to traditional methods across various topologies.
 
-_TODO: Insert the code snippet showing results or comparison chart here_
+![image](https://github.com/Pitt-JonesLab/mirror-gates/assets/47376937/81653cab-24c1-4170-ac5a-438c94d2bab3)
 
 ## Reference
 
 \_TODO:
-
-## Citing Our Work
-
-_Paper in preparation_
-
-_TODO: Insert how to cite your work here_
