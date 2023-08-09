@@ -16,6 +16,12 @@ included to ensure the output of qubits is the same as the input.
 # from mirror_gates.mirage import Mirage
 
 
+# TODO
+def test_foo():
+    """Test nothing."""
+    assert True
+
+
 # # Function to build circuits.
 # def build_circuits():
 #     """Build a list of random quantum circuits for testing.
