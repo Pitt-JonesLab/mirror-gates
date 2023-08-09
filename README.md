@@ -29,4 +29,13 @@ Our experiments demonstrate significant reductions in circuit depth and swap cou
 
 ## Reference
 
-\_TODO:
+```bibtex
+@misc{mckinney2023mirage,
+      title={MIRAGE: Quantum Circuit Decomposition and Routing Collaborative Design using Mirror Gates}, 
+      author={Evan McKinney and Michael Hatridge and Alex K. Jones},
+      year={2023},
+      eprint={2308.03874},
+      archivePrefix={arXiv},
+      primaryClass={quant-ph}
+}
+```
