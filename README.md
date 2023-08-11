@@ -22,8 +22,7 @@ Mirage algorithm defined in `src/mirror_gates/mirage.py`
 ![image](https://github.com/Pitt-JonesLab/mirror-gates/assets/47376937/81653cab-24c1-4170-ac5a-438c94d2bab3)
 
 ## Getting Started
-
-- Main demo: `src/mirror_gates/notebooks/bench.ipynb`.
+Main demo: `src/mirror_gates/notebooks/bench.ipynb`.
 
 ### Usage
 1. Use Mirage as a complete pass manager.
