@@ -1,4 +1,6 @@
-# MIRAGE (Mirror-decomposition Integrated Routing for quantum Algorithm Gate Efficiency)
+# MIRAGE 
+[Quantum Circuit Decomposition and Routing Collaborative Design using Mirror Gates](https://arxiv.org/abs/2308.03874)
+
 ![Tests](https://github.com/Pitt-JonesLab/mirror-gates/actions/workflows/tests.yml/badge.svg?branch=main)
 ![Format Check](https://github.com/Pitt-JonesLab/mirror-gates/actions/workflows/format-check.yml/badge.svg?branch=main)
 
