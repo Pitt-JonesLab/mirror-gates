@@ -73,7 +73,7 @@ mirage_qc = transpile(
 
 - **Package Dependencies**: By default, two other packages are dependencies:
 	- [transpile_benchy](https://github.com/evmckinney9/transpile_benchy): Manages circuit benchmarks, data analytics, and plotting.
-	-[monodromy (fork)](https://github.com/evmckinney9/monodromy): modified for Qiskit AnalysisPass integration.
+	- [monodromy (fork)](https://github.com/evmckinney9/monodromy): modified for Qiskit AnalysisPass integration.
 
 - ⚠️ **Setup**: Running `make init` sets up the required environment and tools. It also clones required repositories.
 	- **Optional**: If you want to leverage the additional features from transpile_benchy, especially its submodules for circuit benchmarking, run `make dev-setup` after initialization. This will clone and set up transpile_benchy with its complete functionalities.
