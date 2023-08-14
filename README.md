@@ -22,7 +22,7 @@
 ## 🚀 Getting Started
 Get started with MIRAGE by exploring the main demo located at `src/mirror_gates/notebooks/bench.ipynb`.
 
-### Usage
+### 💻🐒 Usage
 
 ```python
 from qiskit.transpiler import CouplingMap
@@ -65,7 +65,7 @@ mirage_qc = transpile(
             )
 ```
 
-### Prerequisites
+### 📋 Prerequisites
 - **Monodromy Dependency**: This needs lrs. To install:
 	- `sudo apt install lrslib`
 
@@ -90,7 +90,7 @@ Additional utility commands available in the Makefile:
 - **make test**: Runs tests to ensure code functionality.
 - For more information about the repository structure, visit my [python-template](https://github.com/evmckinney9/python-template)`.
 
-## Reference
+## 📚 Reference
 
 ```bibtex
 @misc{mckinney2023mirage,
