@@ -26,6 +26,5 @@ jobs:
       - name: Setup monodromy
         run: |
           sudo apt install lrslib
-          pip install git+https://github.com/evmckinney9/monodromy.git
       - name: Run pytest
         run: pytest src/tests/

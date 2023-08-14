@@ -13,6 +13,7 @@ init:
 	@$(PRE_COMMIT) install
 	@$(PRE_COMMIT) autoupdate
 
+dev-setup:
 	if [ -d "../transpile_benchy" ]; then \
 		echo "Repository already exists. Updating with latest changes."; \
 		cd ../transpile_benchy && git pull; \
@@ -30,8 +31,6 @@ init:
 		cd monodromy; \
 	fi
 	$(PIP) install -e ../monodromy --quiet
-
-
 
 clean: movefigs
 	@find ./ -type f -name '*.pyc' -exec rm -f {} \; 2>/dev/null || true
