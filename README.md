@@ -25,7 +25,7 @@
 
 ## 🚀 Getting Started
 
-To use as a standalone transpiler plugin, install using
+To use as a standalone [transpiler plugin](https://qiskit.org/documentation/apidoc/transpiler_plugins.html), install using
 
 ```
 pip install -e git+https://github.com/Pitt-JonesLab/mirror-gates#egg=mirror-gates[core]
@@ -108,7 +108,7 @@ Additional utility commands available in the Makefile:
 - **make format**: Formats the codebase.
 - **make clean**: Cleans up temporary and unnecessary files.
 - **make test**: Runs tests to ensure code functionality.
-- For more information about the repository structure, visit my [python-template](https://github.com/evmckinney9/python-template)`.
+- For more information about the repository structure, visit my [python-template](https://github.com/evmckinney9/python-template).
 
 ## 📚 Reference
 
