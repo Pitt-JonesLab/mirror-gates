@@ -40,7 +40,25 @@ from qiskit.transpiler import CouplingMap
 coupling_map = CouplingMap.from_grid(6, 6)
 ```
 
-#### 1. Use Mirage as a complete pass manager.
+#### 1. Use as a Qiskit-Plugin
+
+Integrate MIRAGE into your existing transpilation pipeline:
+
+> ❗ This feature is still currently under development:
+
+```python
+from qikist import transpile
+mirage_qc = transpile(
+                  qc, # input circuit
+                  optimization_level = 3, # default: Qiskit's highest level
+                  coupling_map=coupling_map,
+                  basis_gates= ["u", "xx_plus_yy", "id"],
+                  routing_method="mirage",
+                  layout_method="sabre_layout_v2",
+            )
+```
+
+#### 2. Use Mirage as a complete pass manager.
 
 Handles all pre-, post-processing stages described in our paper:
 
@@ -63,25 +81,7 @@ mirage = Mirage(
 mirage_qc = Mirage.run(qc)
 ```
 
-#### 2. Qiskit-Plugin Approach
-
-Integrate MIRAGE into your existing transpilation pipeline:
-
-> ❗ This feature is still currently under development:
-
-```python
-from qikist import transpile
-mirage_qc = transpile(
-                  qc, # input circuit
-                  optimization_level = 3, # default: Qiskit's highest level
-                  coupling_map=coupling_map,
-                  basis_gates= ["u", "xx_plus_yy", "id"],
-                  routing_method="mirage",
-                  layout_method="sabre_layout_v2",
-            )
-```
-
-⚠️ Currently, does not include a [decomposition pass](https://github.com/Qiskit/qiskit-terra/pull/9375). I've [implemented the logic](https://github.com/Pitt-JonesLab/slam_decomposition/blob/main/src/slam/utils/transpiler_pass/weyl_decompose.py), but this PR suggests there were some bugs - so I'll wait until that gets merged. When including "xx_plus_yy", you'll see some gates are decomposed into 4 basis gates due to limitations of the built-in decomposition method, but using the more updated decomposer (or finding fixed circuit-depth with monodromy) will see this won't ever exceed $k=3$.
+⚠️ Neither method currently includes an optimized [decomposition pass](https://github.com/Qiskit/qiskit-terra/pull/9375). Previously I've [implemented the logic](https://github.com/Pitt-JonesLab/slam_decomposition/blob/main/src/slam/utils/transpiler_pass/weyl_decompose.py), but this PR suggests there were some bugs in the referenced paper- so I'll wait until that gets merged. When including "xx_plus_yy", you'll see some gates are decomposed into 4 basis gates due to limitations of the built-in decomposition method, but using the more updated decomposer (or looking up circuit-depth with monodromy) will see this won't ever exceed $k=3$.
 
 ### 📋 Prerequisites
 
