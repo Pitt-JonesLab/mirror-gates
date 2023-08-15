@@ -47,13 +47,13 @@ Integrate MIRAGE into your existing transpilation pipeline:
 ```python
 from qikist import transpile
 mirage_qc = transpile(
-                  qc, # input circuit
-                  optimization_level = 3, # default: Qiskit's highest level
-                  coupling_map=coupling_map,
-                  basis_gates= ["u", "xx_plus_yy", "id"],
-                  routing_method="mirage",
-                  layout_method="sabre_layout_v2",
-            )
+              qc, # input circuit
+              optimization_level = 3, # default: Qiskit's highest level
+              coupling_map=coupling_map,
+              basis_gates= ["u", "xx_plus_yy", "id"],
+              routing_method="mirage",
+              layout_method="sabre_layout_v2",
+)
 ```
 
 #### 2. Use Mirage as a complete pass manager.
