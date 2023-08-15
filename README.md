@@ -44,8 +44,6 @@ coupling_map = CouplingMap.from_grid(6, 6)
 
 Integrate MIRAGE into your existing transpilation pipeline:
 
-> ❗ This feature is still currently under development:
-
 ```python
 from qikist import transpile
 mirage_qc = transpile(
