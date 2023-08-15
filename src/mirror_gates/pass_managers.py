@@ -4,12 +4,11 @@ from abc import ABC
 
 from qiskit.circuit.library import CXGate, iSwapGate
 from qiskit.transpiler import PassManager
+
+# ApplyLayout,; EnlargeWithAncilla,; FullAncillaAllocation,
 from qiskit.transpiler.passes import (
-    ApplyLayout,
     Collect2qBlocks,
     ConsolidateBlocks,
-    EnlargeWithAncilla,
-    FullAncillaAllocation,
     OptimizeSwapBeforeMeasure,
     RemoveBarriers,
     RemoveDiagonalGatesBeforeMeasure,
@@ -243,10 +242,6 @@ class Mirage(CustomLayoutRoutingManager):
 
         # Append the Mirage pass with the condition
         pm.append(layout_method, condition=vf2_not_converged)
-        pm.append(FullAncillaAllocation(self.coupling))
-        pm.append(EnlargeWithAncilla())
-        pm.append(ApplyLayout())
-        pm.append(routing_method, condition=vf2_not_converged)
         pm.append(SaveCircuitProgress("mid"))
         return pm
 
@@ -268,8 +263,7 @@ class QiskitLevel3(CustomLayoutRoutingManager):
                 optimization_level=3,
                 coupling_map=self.coupling,
                 basis_gates=self.basis_gates,
-                routing_method="legacy_sabre" if self.python_sabre else None,
-                layout_method="legacy_layout" if self.python_sabre else None,
+                layout_method="legacy_sabre" if self.python_sabre else None,
             )
             yield self.build_post_stage()
 

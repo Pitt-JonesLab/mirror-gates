@@ -1,19 +1,34 @@
+# Variables
 PYTHON_VERSION = python3.11
 PIP = .venv/bin/pip
 PYTEST = .venv/bin/pytest
 PRE_COMMIT = .venv/bin/pre-commit
 
-.PHONY: init clean test precommit format transpile_benchy
+# Targets that do not create any files
+.PHONY: venv-setup init dev-init clean test precommit format transpile_benchy monodromy
 
-init:
+# Initialize virtual environment
+venv-setup:
 	rm -rf .venv
 	$(PYTHON_VERSION) -m venv .venv
 	@$(PIP) install --upgrade pip
+
+# Install main dependencies
+init: venv-setup
+	$(PIP) install -e .[core]
+
+# Setup development environment
+dev-init: venv-setup install-dev-deps pre-commit-setup transpile_benchy monodromy
+
+install-dev-deps:
 	$(PIP) install -e .[dev] --quiet
+
+pre-commit-setup:
 	@$(PRE_COMMIT) install
 	@$(PRE_COMMIT) autoupdate
 
-dev-setup:
+# Install or update transpile_benchy repo
+transpile_benchy:
 	if [ -d "../transpile_benchy" ]; then \
 		echo "Repository already exists. Updating with latest changes."; \
 		cd ../transpile_benchy && git pull; \
@@ -23,6 +38,8 @@ dev-setup:
 	fi
 	$(PIP) install -e ../transpile_benchy --quiet
 
+# Install or update monodromy repo
+monodromy:
 	if [ -d "../monodromy" ]; then \
 		echo "Repository already exists. Updating with latest changes."; \
 		cd ../monodromy && git pull; \
@@ -31,7 +48,6 @@ dev-setup:
 		cd monodromy; \
 	fi
 	$(PIP) install -e ../monodromy --quiet
-
 clean: movefigs
 	@find ./ -type f -name '*.pyc' -exec rm -f {} \; 2>/dev/null || true
 	@find ./ -type d -name '__pycache__' -exec rm -rf {} \; 2>/dev/null || true

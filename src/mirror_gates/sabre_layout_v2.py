@@ -17,9 +17,7 @@ run with a custom routing pass
 
 import copy
 import logging
-
-# from concurrent.futures import ProcessPoolExecutor as Pool
-from concurrent.futures import ProcessPoolExecutor, TimeoutError, as_completed
+from concurrent.futures import ProcessPoolExecutor as Pool
 
 import numpy as np
 import rustworkx as rx
@@ -39,6 +37,9 @@ from qiskit.transpiler.passes.layout.full_ancilla_allocation import (
 from qiskit.transpiler.passes.layout.set_layout import SetLayout
 from qiskit.transpiler.passes.routing.sabre_swap import apply_gate, process_swaps
 from qiskit.transpiler.passmanager import PassManager
+
+# from concurrent.futures import ProcessPoolExecutor, TimeoutError, as_completed
+
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ class SabreLayout(TransformationPass):
     def __init__(
         self,
         coupling_map,
-        routing_pass=None,
+        routing_pass,
         seed=None,
         max_iterations=4,
         swap_trials=6,
@@ -233,35 +234,35 @@ class SabreLayout(TransformationPass):
         # tracking success from each independent layout trial
         self.property_set["layout_trials"] = []
 
-        # if self.parallel:
-        #     # Create a multiprocessing pool.
-        #     with Pool() as pool:
-        #         results = pool.map(
-        #             self._run_single_layout_restart, range(self.layout_trials)
-        #         )
-        # else:
-        #     results = map(self._run_single_layout_restart, range(self.layout_trials))
-
         if self.parallel:
             # Create a multiprocessing pool.
-            with ProcessPoolExecutor() as pool:
-                futures = {
-                    pool.submit(self._run_single_layout_restart, i)
-                    for i in range(self.layout_trials)
-                }
-                results = []
-                for future in as_completed(futures):
-                    try:
-                        result = future.result(
-                            timeout=6000
-                        )  # Timeout increased to 6000 seconds
-                        results.append(result)
-                    except TimeoutError:
-                        print("A layout trial took too long and was skipped.")
+            with Pool() as pool:
+                results = pool.map(
+                    self._run_single_layout_restart, range(self.layout_trials)
+                )
         else:
-            results = list(
-                map(self._run_single_layout_restart, range(self.layout_trials))
-            )
+            results = map(self._run_single_layout_restart, range(self.layout_trials))
+
+        # if self.parallel:
+        #     # Create a multiprocessing pool.
+        #     with ProcessPoolExecutor() as pool:
+        #         futures = {
+        #             pool.submit(self._run_single_layout_restart, i)
+        #             for i in range(self.layout_trials)
+        #         }
+        #         results = []
+        #         for future in as_completed(futures):
+        #             try:
+        #                 result = future.result(
+        #                     timeout=6000
+        #                 )  # Timeout increased to 6000 seconds
+        #                 results.append(result)
+        #             except TimeoutError:
+        #                 print("A layout trial took too long and was skipped.")
+        # else:
+        #     results = list(
+        #         map(self._run_single_layout_restart, range(self.layout_trials))
+        #     )
 
         # Select the layout with the lowest cost.
         results = list(results)
@@ -281,6 +282,12 @@ class SabreLayout(TransformationPass):
 
         # makes so when do routing next will actually modify the mapped_dag
         self.routing_pass.fake_run = False
+
+        if not self.skip_routing:
+            # now actually do the routing
+            dag = self._apply_layout_no_pass_manager(dag)
+            self.routing_pass.property_set = self.property_set
+            dag = self.routing_pass.run(dag)
 
         return dag
 
