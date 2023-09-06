@@ -79,7 +79,8 @@ mirage = Mirage(
 mirage_qc = Mirage.run(qc)
 ```
 
-⚠️ Neither method currently includes an optimized [decomposition pass](https://github.com/Qiskit/qiskit-terra/pull/9375). Previously I've [implemented the logic](https://github.com/Pitt-JonesLab/slam_decomposition/blob/main/src/slam/utils/transpiler_pass/weyl_decompose.py), but this PR suggests there were some bugs in the referenced paper- so I'll wait until that gets merged. When including "xx_plus_yy", you'll see some gates are decomposed into 4 basis gates due to limitations of the built-in decomposition method, but using the more updated decomposer (or looking up circuit-depth with monodromy) will see this won't ever exceed $k=3$.
+> [!WARNING]
+> Neither method currently includes an optimized [decomposition pass](https://github.com/Qiskit/qiskit-terra/pull/9375). Previously I've [implemented the logic](https://github.com/Pitt-JonesLab/slam_decomposition/blob/main/src/slam/utils/transpiler_pass/weyl_decompose.py), but this PR suggests there were some bugs in the referenced paper- so I'll wait until that gets merged. When including "xx_plus_yy", you'll see some gates are decomposed into 4 basis gates due to limitations of the built-in decomposition method, but using the more updated decomposer (or looking up circuit-depth with monodromy) will see this won't ever exceed $k=3$.
 
 ### 📋 Prerequisites
 
