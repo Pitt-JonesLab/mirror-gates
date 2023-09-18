@@ -2,6 +2,7 @@
 
 [Quantum Circuit Decomposition and Routing Collaborative Design using Mirror Gates](https://arxiv.org/abs/2308.03874)
 
+![ecosystem](https://img.shields.io/badge/Qiskit-Ecosystem-blueviolet)
 ![Tests](https://github.com/Pitt-JonesLab/mirror-gates/actions/workflows/tests.yml/badge.svg?branch=main)
 ![Format Check](https://github.com/Pitt-JonesLab/mirror-gates/actions/workflows/format-check.yml/badge.svg?branch=main)
 
