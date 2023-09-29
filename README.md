@@ -64,7 +64,7 @@ Handles all pre-, post-processing stages described in our paper:
 ```python
 from mirror_gates.pass_managers import Mirage
 mirage = Mirage(
-            coupling, # coupling map
+            coupling_map, # coupling map
             name="Mirage-$\sqrt{\texttt{iSWAP}}$", # transpile_benchy and figure labels)
             parallel=True, # run trials in parallel or serial
             cx_basis=False, # turning on sets CNOT as the basis gate,
@@ -77,7 +77,7 @@ mirage = Mirage(
             no_vf2=False, # keep False to use VF2 for finding complete layouts
             logger=None, # from logging moduel
 )
-mirage_qc = Mirage.run(qc)
+mirage_qc = mirage.run(circuit=qc)
 ```
 
 > [!WARNING]
