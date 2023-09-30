@@ -1,10 +1,15 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
+message: "If you use this software, please cite it using the reference below."
 authors:
   - family-names: McKinney
     given-names: Evan
     orcid: https://orcid.org/0000-0002-4865-5458
-title: "My Research Software"
+  - family-names: Hatridge
+    given-names: Michael
+  - family-names: Jones
+    given-names: Alex K
+title: "MIRAGE: Quantum Circuit Decomposition and Routing Collaborative Design using Mirror Gates"
 version: 0.1.0
-doi: 10.5281/zenodo.1234
-date-released: 2023-04-19
+doi: 10.48550/arXiv.2308.03874
+date-released: 2023-08-07
+repository-code: "https://github.com/Pitt-JonesLab/mirror-gates"
