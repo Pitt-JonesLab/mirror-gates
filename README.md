@@ -116,12 +116,11 @@ Additional utility commands available in the Makefile:
 ## 📚 Reference
 
 ```bibtex
-@misc{mckinney2023mirage,
-      title={MIRAGE: Quantum Circuit Decomposition and Routing Collaborative Design using Mirror Gates},
-      author={Evan McKinney and Michael Hatridge and Alex K. Jones},
-      year={2023},
-      eprint={2308.03874},
-      archivePrefix={arXiv},
-      primaryClass={quant-ph}
+@article{McKinney_MIRAGE_Quantum_Circuit_2023,
+author = {McKinney, Evan and Hatridge, Michael and Jones, Alex K},
+doi = {10.48550/arXiv.2308.03874},
+journal = {arXiv preprint arXiv:2308.03874},
+title = {{MIRAGE: Quantum Circuit Decomposition and Routing Collaborative Design using Mirror Gates}},
+year = {2023}
 }
 ```
