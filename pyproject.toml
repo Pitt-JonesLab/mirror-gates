@@ -2,6 +2,56 @@
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "mirror-gates"
+description = "My package description"
+version = "0.1.0"
+authors = [{ name = "Evan McKinney", email = "evmckinney9@gmail.com" }]
+requires-python = ">=3.9"
+dependencies = [
+    "scipy",
+    "qutip",
+    "numpy",
+    "qiskit",
+    "qiskit-aer",
+    "weylchamber",
+    "matplotlib",
+    "retworkx",
+]
+
+[project.optional-dependencies]
+core = [
+    "monodromy @ git+https://github.com/evmckinney9/monodromy.git",
+    "transpile_benchy @ git+https://github.com/evmckinney9/transpile_benchy.git",
+]
+dev = [
+    "ipykernel",
+    "pre-commit",
+    "pylatexenc",
+    "ipympl",
+    "snakeviz",
+    "SciencePlots",
+    "LovelyPlots",
+]
+format = [
+    "pre-commit",
+    "black[jupyter]",
+    "isort",
+    "tomli",
+    "pydocstyle",
+    "ruff",
+    "docformatter[tomli]",
+]
+test = ["pytest"]
+
+[project.entry-points."qiskit.transpiler.layout"]
+legacy_sabre = "mirror_gates.qiskit.mirage_plugins:LegacySabreLayoutPlugin"
+sabre_layout_v2 = "mirror_gates.qiskit.mirage_plugins:MirageLayoutPlugin"
+
+[project.entry-points."qiskit.transpiler.routing"]
+mirage = "mirror_gates.qiskit.mirage_plugins:MirageRoutingPlugin"
+
+
 [tool.ruff]
 target-version = "py311"
 fix = true
