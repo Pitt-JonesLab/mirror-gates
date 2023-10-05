@@ -161,6 +161,12 @@ class FastConsolidateBlocks(TransformationPass):
                     # The qubit order is reversed
                     def swap_rows_columns_list(unitary):
                         """Handle swapping qarg ordering."""
+                        # make a copy to avoid mutable object errors
+                        unitary = unitary.copy()
+
+                        # # XXX no idea why this error occurs, but temp fix
+                        # unitary.setflags(write=True)
+
                         unitary[:, [1, 2]] = unitary[:, [2, 1]]
                         unitary[[1, 2], :] = unitary[[2, 1], :]
                         return unitary
