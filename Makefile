@@ -1,5 +1,5 @@
 # Variables
-PYTHON_VERSION = python3.10
+PYTHON_VERSION = python3.9
 PIP = .venv/bin/pip
 PYTEST = .venv/bin/pytest
 PRE_COMMIT = .venv/bin/pre-commit
@@ -20,8 +20,10 @@ init: venv-setup
 # Setup development environment
 dev-init: venv-setup install-dev-deps pre-commit-setup transpile_benchy monodromy
 
+# force using my fork which includes the incomplete sqiswap decomposition PR
 install-dev-deps:
 	$(PIP) install -e .[dev] --quiet
+	$(PIP) install git+https://github.com/evmckinney9/qiskit-evmckinney9.git@sqisw-gate
 
 pre-commit-setup:
 	@$(PRE_COMMIT) install
@@ -33,7 +35,7 @@ transpile_benchy:
 		echo "Repository already exists. Updating with latest changes."; \
 		cd ../transpile_benchy && git pull; \
 	else \
-		cd .. && git clone https://github.com/evmckinney9/transpile_benchy.git --recurse-submodules; \
+		cd .. && git clone https://github.com/evmckinney9/transpile_benchy.git@-no-mqt --recurse-submodules; \
 		cd transpile_benchy; \
 	fi
 	$(PIP) install -e ../transpile_benchy --quiet

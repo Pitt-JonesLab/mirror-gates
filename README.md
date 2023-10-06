@@ -81,8 +81,15 @@ mirage = Mirage(
 mirage_qc = mirage.run(circuit=qc)
 ```
 
-> [!WARNING]
-> Neither method currently includes an optimized [decomposition pass](https://github.com/Qiskit/qiskit-terra/pull/9375). Previously I've [implemented the logic](https://github.com/Pitt-JonesLab/slam_decomposition/blob/main/src/slam/utils/transpiler_pass/weyl_decompose.py), but this PR suggests there were some bugs in the referenced paper- so I'll wait until that gets merged. When including "xx_plus_yy", you'll see some gates are decomposed into 4 basis gates due to limitations of the built-in decomposition method, but using the more updated decomposer (or looking up circuit-depth with monodromy) will see this won't ever exceed $k=3$.
+[!WARNING]
+[!WARNING]
+In the current version of Qiskit, there's no direct support for \( \sqrt{iSWAP} \) as a basis gate. As a workaround, I've been using `XX+YY`, which provides a partial solution but isn't fully optimized.
+
+However, there's an ongoing [pull request](https://github.com/Qiskit/qiskit-terra/pull/9375) in Qiskit that introduces a new gate, `SiSwapGate`, which represents \( \sqrt{iSWAP} \). This PR also brings in optimized decomposition methods for the gate. I've previously [implemented a similar logic](https://github.com/Pitt-JonesLab/slam_decomposition/blob/main/src/slam/utils/transpiler_pass/weyl_decompose.py), but the PR suggests there might have been some inaccuracies in the paper I referenced.
+
+To benefit from the advancements in the PR, I'm temporarily using a [fork of the PR](https://github.com/evmckinney9/qiskit-evmckinney9/tree/sqisw-gate) in this project. By leveraging the fork, when you use the `SiSwapGate`, you'll notice a more efficient decomposition compared to the `XX+YY` workaround.
+
+Please note that this is a provisional solution. I'll transition back to the main Qiskit repository once the PR is merged and the `SiSwapGate` with its decomposition methods becomes officially available.
 
 ### 📋 Prerequisites
 

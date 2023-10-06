@@ -11,18 +11,19 @@ requires-python = ">=3.9"
 dependencies = [
     "scipy",
     "qutip",
-    "numpy==1.23.5",
-    "qiskit",
-    "qiskit-aer",
+    "numpy",
+    "qiskit-terra @ git+https://github.com/evmckinney9/qiskit-evmckinney9.git@sqisw-gate",
+    # "qiskit-aer",
     "weylchamber",
     "matplotlib",
     "retworkx",
+    "networkx",
 ]
 
 [project.optional-dependencies]
 core = [
     "monodromy @ git+https://github.com/evmckinney9/monodromy.git",
-    "transpile_benchy @ git+https://github.com/evmckinney9/transpile_benchy.git",
+    "transpile_benchy @ git+https://github.com/evmckinney9/transpile_benchy.git@no-mqt",
 ]
 dev = [
     "ipykernel",
