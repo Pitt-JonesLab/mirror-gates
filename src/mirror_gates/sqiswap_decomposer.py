@@ -9,11 +9,18 @@ from qiskit.converters import circuit_to_dag
 from qiskit.synthesis.su4 import SiSwapDecomposer
 from qiskit.transpiler.basepasses import TransformationPass
 
+from mirror_gates.fast_unitary import FastConsolidateBlocks
+
 decomp = SiSwapDecomposer(euler_basis=["u"])
 
 
 class SiSwapDecomposePass(TransformationPass):
     """Decompose 2Q gates into SiSwap gates."""
+
+    def __init__(self):
+        """Initialize the SiSwapDecomposePass pass."""
+        super().__init__()
+        self.requires = [FastConsolidateBlocks(coord_caching=True)]
 
     def run(self, dag):
         """Run the SiSwapDecomposePass pass on `dag`."""
