@@ -1,23 +1,23 @@
 """Noisy fidelity of a circuit."""
 import numpy as np
-from qiskit import Aer, transpile
+from qiskit import transpile
 from qiskit.circuit import Delay
 from qiskit.quantum_info import state_fidelity
 from qiskit.transpiler import PassManager
 from qiskit.transpiler.passes import ASAPSchedule
-from qiskit_aer import AerSimulator
+from qiskit_aer import AerSimulator, QasmSimulator
 
 # Import from Qiskit Aer noise module
 from qiskit_aer.noise import NoiseModel, RelaxationNoisePass, thermal_relaxation_error
 
 # 100 microsec (in nanoseconds)
-T1 = 100e3
+T1 = 80e3
 # 100 microsec
-T2 = 100e3
+T2 = 80e3
 
 # Instruction times (in nanoseconds)
 time_u3 = 25
-time_cx = 100
+time_cx = 150
 time_siswap = time_cx / 2.0
 # divide by 2 again since
 # each sqrt(iSwap) is compiled to an RXX and RYY
@@ -40,7 +40,8 @@ def get_noisy_fidelity(qc, coupling_map):
     basis_gates = ["cx", "u", "u3", "rxx", "ryy", "id"]
 
     # Step 1. Convert into simulator basis gates
-    simulator = Aer.get_backend("aer_simulator")
+    # simulator = Aer.get_backend("density_matrix_gpu")
+    simulator = QasmSimulator(method="density_matrix")
     circ = transpile(
         qc,
         simulator,
