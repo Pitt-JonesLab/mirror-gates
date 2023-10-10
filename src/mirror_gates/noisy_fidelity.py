@@ -12,8 +12,8 @@ from qiskit_aer.noise import NoiseModel, RelaxationNoisePass, thermal_relaxation
 
 # 100 microsec (in nanoseconds)
 T1 = 100e3
-# 50 microsec
-T2 = 50e3
+# 100 microsec
+T2 = 100e3
 
 # Instruction times (in nanoseconds)
 time_u3 = 25
@@ -37,13 +37,14 @@ def get_noisy_fidelity(qc, coupling_map):
         circ (QuantumCircuit): transpiled circuit
     """
     N = coupling_map.size()
+    basis_gates = ["cx", "u", "u3", "rxx", "ryy", "id"]
 
     # Step 1. Convert into simulator basis gates
     simulator = Aer.get_backend("aer_simulator")
     circ = transpile(
         qc,
         simulator,
-        basis_gates=["cx", "rxx", "ryy", "u", "save_density_matrix"],
+        basis_gates=basis_gates,
         coupling_map=coupling_map,
     )
 
@@ -57,7 +58,7 @@ def get_noisy_fidelity(qc, coupling_map):
     instruction_durations = []
 
     # Add errors to noise model
-    noise_thermal = NoiseModel(basis_gates=["cx", "u", "rxx", "ryy"])
+    noise_thermal = NoiseModel(basis_gates=basis_gates)
     for j in range(N):
         error_u3 = thermal_relaxation_error(T1s[j], T2s[j], time_u3)
         noise_thermal.add_quantum_error(error_u3, ["u1", "u2", "u3", "u"], [j])
@@ -77,7 +78,7 @@ def get_noisy_fidelity(qc, coupling_map):
         instruction_durations.append(("rxx", (j, k), time_rxx))
         instruction_durations.append(("ryy", (j, k), time_rxx))
 
-    print(noise_thermal)  ####
+    # print(noise_thermal)  ####
 
     instruction_durations.append(("save_density_matrix", list(range(N)), 0.0))
     noisy_simulator = AerSimulator(noise_model=noise_thermal)
@@ -86,7 +87,7 @@ def get_noisy_fidelity(qc, coupling_map):
     circ = transpile(
         qc,
         noisy_simulator,
-        basis_gates=["cx", "rxx", "ryy", "u", "save_density_matrix"],
+        basis_gates=basis_gates + ["save_density_matrix"],
         instruction_durations=instruction_durations,
         scheduling_method="asap",
         coupling_map=coupling_map,
