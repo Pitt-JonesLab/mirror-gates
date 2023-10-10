@@ -18,12 +18,13 @@ init: venv-setup
 	$(PIP) install -e .[core]
 
 # Setup development environment
+# NOTE: Instead of pip installing 'core' dependencies directly from git repositories,
+# the relevant repositories are cloned into a sibling directory and installed in editable mode.
 dev-init: venv-setup install-dev-deps pre-commit-setup transpile_benchy monodromy
 
 # force using my fork which includes the incomplete sqiswap decomposition PR
 install-dev-deps:
-	$(PIP) install -e .[dev] --quiet
-	$(PIP) install git+https://github.com/evmckinney9/qiskit-evmckinney9.git@sqisw-gate
+	$(PIP) install -e .[dev]
 
 pre-commit-setup:
 	@$(PRE_COMMIT) install
@@ -33,10 +34,10 @@ pre-commit-setup:
 transpile_benchy:
 	if [ -d "../transpile_benchy" ]; then \
 		echo "Repository already exists. Updating with latest changes."; \
-		cd ../transpile_benchy && git pull; \
+		cd ../transpile_benchy && git pull && git checkout no-mqt; \
 	else \
-		cd .. && git clone https://github.com/evmckinney9/transpile_benchy.git@-no-mqt --recurse-submodules; \
-		cd transpile_benchy; \
+		cd .. && git clone https://github.com/evmckinney9/transpile_benchy.git --recurse-submodules; \
+		cd transpile_benchy && git checkout no-mqt; \
 	fi
 	$(PIP) install -e ../transpile_benchy --quiet
 
@@ -50,6 +51,7 @@ monodromy:
 		cd monodromy; \
 	fi
 	$(PIP) install -e ../monodromy --quiet
+
 clean: movefigs
 	@find ./ -type f -name '*.pyc' -exec rm -f {} \; 2>/dev/null || true
 	@find ./ -type d -name '__pycache__' -exec rm -rf {} \; 2>/dev/null || true

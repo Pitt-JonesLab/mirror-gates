@@ -1,5 +1,4 @@
 """Noisy fidelity of a circuit."""
-import numpy as np
 from qiskit import transpile
 from qiskit.circuit import Delay
 from qiskit.quantum_info import state_fidelity
@@ -10,18 +9,18 @@ from qiskit_aer import AerSimulator, QasmSimulator
 # Import from Qiskit Aer noise module
 from qiskit_aer.noise import NoiseModel, RelaxationNoisePass, thermal_relaxation_error
 
-# 100 microsec (in nanoseconds)
+# 80 microsec (in nanoseconds)
 T1 = 80e3
-# 100 microsec
+# 80 microsec
 T2 = 80e3
 
 # Instruction times (in nanoseconds)
 time_u3 = 25
-time_cx = 150
-time_siswap = time_cx / 2.0
+time_cx = 100
+time_siswap = int(time_cx / 2.0)
 # divide by 2 again since
 # each sqrt(iSwap) is compiled to an RXX and RYY
-time_rxx = time_siswap / 2.0
+time_rxx = int(time_siswap / 2.0)
 
 
 def get_noisy_fidelity(qc, coupling_map):
@@ -97,11 +96,10 @@ def get_noisy_fidelity(qc, coupling_map):
     # Step 4. Relaxation noise for idle qubits
     pm = PassManager()
     pm.append(ASAPSchedule())
-    # NOTE Relaxation pass takes T1 and T2 in seconds
     pm.append(
         RelaxationNoisePass(
-            list(np.array(T1s) * 10e-9),
-            list(np.array(T2s) * 10e-9),
+            t1s=T1s,
+            t2s=T2s,
             dt=1e-9,
             op_types=[Delay],
         )
@@ -111,6 +109,7 @@ def get_noisy_fidelity(qc, coupling_map):
 
     # Step 5. Run perfect and noisy simulation and compare
     circ.save_density_matrix(list(range(N)))
+
     perfect_result = simulator.run(circ).result().data()["density_matrix"]
     noisy_result = noisy_simulator.run(circ).result().data()["density_matrix"]
     fidelity = state_fidelity(perfect_result, noisy_result)
