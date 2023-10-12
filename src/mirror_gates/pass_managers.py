@@ -66,13 +66,15 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         self.use_fast_settings = use_fast_settings
         self.coupling = coupling
         self.cx_basis = cx_basis
+        self.syc_basis = syc_basis
         self.logger = logger
-        if self.cx_basis and not syc_basis:
+        if self.cx_basis and not self.syc_basis:
             self.basis_gate = CXGate()
             self.gate_costs = 1.0
             self.name += r"-$\texttt{CNOT}$"
             self.basis_gates = ["u", "cx", "id"]
         elif self.syc_basis:
+            # raise NotImplementedError
             self.basis_gate = syc
             self.gate_costs = 1.0
             self.name += r"-$\texttt{SYC}$"
