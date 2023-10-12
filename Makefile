@@ -18,7 +18,9 @@ init: venv-setup
 	$(PIP) install -e .[core]
 
 # Setup development environment
+# includes a temporary fix for pytket-qiskit (https://github.com/CQCL/tket/issues/1023)
 dev-init: venv-setup install-dev-deps pre-commit-setup transpile_benchy monodromy
+	$(PIP) install --upgrade pytket && $(PIP) install --upgrade pytket-qiskit
 
 install-dev-deps:
 	$(PIP) install -e .[dev] --quiet
@@ -31,10 +33,10 @@ pre-commit-setup:
 transpile_benchy:
 	if [ -d "../transpile_benchy" ]; then \
 		echo "Repository already exists. Updating with latest changes."; \
-		cd ../transpile_benchy && git pull; \
+		cd ../transpile_benchy && git pull && git checkout main; \
 	else \
 		cd .. && git clone https://github.com/evmckinney9/transpile_benchy.git --recurse-submodules; \
-		cd transpile_benchy; \
+		cd transpile_benchy && git checkout main; \
 	fi
 	$(PIP) install -e ../transpile_benchy --quiet
 

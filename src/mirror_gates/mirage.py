@@ -274,13 +274,11 @@ class Mirage(LegacySabreSwap):
 
     def _handle_no_progress(self, dag):
         """Handle the case where no progress is being made."""
-        # XXX, this methods are relying on updating variables via pass by reference
-        # does this work for class variables?
         raise NotImplementedError("Unresovled bug in handle_no_progress function")
-        self._undo_operations(
+        self._mapped_dag, self._current_layout = self._undo_operations(
             self._ops_since_progress, self._mapped_dag, self._current_layout
         )
-        self._add_greedy_swaps(
+        self._mapped_dag, self._current_layout = self._add_greedy_swaps(
             self._front_layer,
             self._mapped_dag,
             self._current_layout,
@@ -306,7 +304,8 @@ class Mirage(LegacySabreSwap):
                 v0, v1 = node.qargs
                 if (
                     self.coupling_map.graph.has_edge(
-                        self._current_layout._v2p[v0], self._current_layout._v2p[v1]
+                        self._current_layout._v2p[v0],
+                        self._current_layout._v2p[v1],
                     )
                     and self._intermediate_required_predecessors[node] == 0
                 ):
@@ -494,7 +493,11 @@ class Mirage(LegacySabreSwap):
             trial_layout = self._current_layout.copy()
             trial_layout.swap(*swap_qubits)
             score = self._score_heuristic(
-                "decay", self._front_layer, extended_set, trial_layout, swap_qubits
+                "decay",
+                self._front_layer,
+                extended_set,
+                trial_layout,
+                swap_qubits,
             )
             swap_scores[swap_qubits] = score
         min_score = min(swap_scores.values())
@@ -534,8 +537,6 @@ class Mirage(LegacySabreSwap):
             # process front layer
             # if true, repeat until no more gates can be processed
             if self._process_front_layer(dag):
-                # XXX, this continue may not be necessary
-                # keep for safety :)
                 continue
 
             # If there are gates in the intermediate layer, process them
