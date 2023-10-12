@@ -9,6 +9,8 @@ from qiskit_aer import AerSimulator, QasmSimulator
 # Import from Qiskit Aer noise module
 from qiskit_aer.noise import NoiseModel, RelaxationNoisePass, thermal_relaxation_error
 
+from mirror_gates.sqiswap_decomposer import SiSwapDecomposePass
+
 # 80 microsec (in nanoseconds)
 T1 = 80e3
 # 80 microsec
@@ -23,11 +25,11 @@ time_siswap = int(time_cx / 2.0)
 time_rxx = int(time_siswap / 2.0)
 
 
-def get_noisy_fidelity(qc, coupling_map):
+def get_noisy_fidelity(qc, coupling_map, sqrt_iswap_basis=False):
     """Get noisy fidelity of a circuit.
 
     Args:
-        qc (QuantumCircuit): circuit to run
+        qc (QuantumCircuit): circuit to run, assumes all gates are consolidated
         coupling_map (CouplingMap): coupling map of device
 
     Returns:
@@ -37,6 +39,12 @@ def get_noisy_fidelity(qc, coupling_map):
     """
     N = coupling_map.size()
     basis_gates = ["cx", "u", "u3", "rxx", "ryy", "id"]
+
+    # Step 0. Given consolidated circuit, decompose into basis gates
+    if sqrt_iswap_basis:
+        decomposer = PassManager()
+        decomposer.append(SiSwapDecomposePass())
+        qc = decomposer.run(qc)
 
     # Step 1. Convert into simulator basis gates
     # simulator = Aer.get_backend("density_matrix_gpu")

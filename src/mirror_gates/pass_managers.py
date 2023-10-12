@@ -227,7 +227,9 @@ class Mirage(CustomLayoutRoutingManager):
         if not self.no_vf2:
             pm.append(
                 VF2Layout(
-                    coupling_map=self.coupling, seed=self.seed, call_limit=int(3e7)
+                    coupling_map=self.coupling,
+                    seed=self.seed,
+                    call_limit=int(3e7),
                 )
             )
 
