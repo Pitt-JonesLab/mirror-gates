@@ -1,4 +1,4 @@
-twolocalecp_n4
-twolocalcnot_n4
-twolocaliswap_n4
-twolocalsqrtiswap_n4
+twolocalecp_n8
+twolocalcnot_n8
+twolocaliswap_n8
+twolocalsqrtiswap_n8
