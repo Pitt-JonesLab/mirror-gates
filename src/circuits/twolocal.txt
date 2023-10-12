@@ -1,4 +1,4 @@
-twolocalecp_n8
-twolocalcnot_n8
-twolocaliswap_n8
-twolocalsqrtiswap_n8
+fullecp_n8
+fullcnot_n8
+fulliswap_n8
+fullsqiswap_n8
