@@ -3,19 +3,24 @@ from qiskit import transpile
 from qiskit.circuit import Delay
 from qiskit.quantum_info import state_fidelity
 from qiskit.transpiler import PassManager
-from qiskit.transpiler.passes import ASAPSchedule
+from qiskit.transpiler.passes import ASAPSchedule, Optimize1qGatesDecomposition
 from qiskit_aer import AerSimulator, QasmSimulator
 
 # Import from Qiskit Aer noise module
-from qiskit_aer.noise import NoiseModel, RelaxationNoisePass, thermal_relaxation_error
+from qiskit_aer.noise import (
+    NoiseModel,
+    RelaxationNoisePass,
+    depolarizing_error,
+    thermal_relaxation_error,
+)
 
 from mirror_gates.sqiswap_decomposer import SiSwapDecomposePass
 
 # See Github Issue: ...
 # 80 microsec (in nanoseconds)
-T1 = 80e2
+T1 = 80e3
 # 80 microsec
-T2 = 80e2
+T2 = 80e3
 
 # Instruction times (in nanoseconds)
 time_u3 = 25
@@ -24,6 +29,70 @@ time_siswap = int(time_cx / 2.0)
 # divide by 2 again since
 # each sqrt(iSwap) is compiled to an RXX and RYY
 time_rxx = int(time_siswap / 2.0)
+
+p1 = 0.0
+p2 = 0.00658
+
+
+class NoiseModelBuilder:
+    """A class to help build a custom NoiseModel from scratch.
+
+    Many of the functions are based on examples from
+    https://github.com/Qiskit/qiskit-presentations/blob/master/2019-02-26_QiskitCamp/QiskitCamp_Simulation.ipynb
+    """
+
+    def __init__(self, basis_gates, coupling_map=None):
+        """Initialize a NoiseModelBuilder."""
+        self.noise_model = NoiseModel(basis_gates=basis_gates)
+        self.coupling_map = coupling_map
+
+    def construct_basic_device_model(self, p_depol1, p_depol2, t1, t2):
+        """Emulate qiskit.providers.aer.noise.device.models.basic_device_noise_model().
+
+        The noise model includes the following errors:
+
+            * Single qubit readout errors on measurements.
+            * Single-qubit gate errors consisting of a depolarizing error
+              followed by a thermal relaxation error for the qubit the gate
+              acts on.
+            * Two-qubit gate errors consisting of a 2-qubit depolarizing
+              error followed by single qubit thermal relaxation errors for
+              all qubits participating in the gate.
+
+        :param p_depol1: Probability of a depolarising error on single qubit gates
+        :param p_depol2: Probability of a depolarising error on two qubit gates
+        :param t1: Thermal relaxation time constant
+        :param t2: Dephasing time constant
+        """
+        if t2 > 2 * t1:
+            raise ValueError("t2 cannot be greater than 2t1")
+
+        # Thermal relaxation error
+
+        # QuantumError objects
+        error_thermal_u3 = thermal_relaxation_error(t1, t2, time_u3)
+        error_thermal_cx = thermal_relaxation_error(t1, t2, time_cx).expand(
+            thermal_relaxation_error(t1, t2, time_cx)
+        )
+        error_thermal_rxx = thermal_relaxation_error(t1, t2, time_rxx).expand(
+            thermal_relaxation_error(t1, t2, time_rxx)
+        )
+
+        # Depolarizing error
+        error_depol1 = depolarizing_error(p_depol1, 1)
+        error_depol2 = depolarizing_error(p_depol2, 2)
+
+        self.noise_model.add_all_qubit_quantum_error(
+            error_depol1.compose(error_thermal_u3), "u"
+        )
+
+        for pair in self.coupling_map:
+            self.noise_model.add_quantum_error(
+                error_depol2.compose(error_thermal_cx), "cx", pair
+            )
+            self.noise_model.add_quantum_error(
+                error_depol2.compose(error_thermal_rxx), ["rxx", "ryy"], pair
+            )
 
 
 def get_noisy_fidelity(qc, coupling_map, sqrt_iswap_basis=False):
@@ -39,12 +108,13 @@ def get_noisy_fidelity(qc, coupling_map, sqrt_iswap_basis=False):
         circ (QuantumCircuit): transpiled circuit
     """
     N = coupling_map.size()
-    basis_gates = ["cx", "u", "u3", "rxx", "ryy", "id"]
+    basis_gates = ["cx", "u", "rxx", "ryy", "id"]
 
     # Step 0. Given consolidated circuit, decompose into basis gates
     if sqrt_iswap_basis:
         decomposer = PassManager()
         decomposer.append(SiSwapDecomposePass())
+        decomposer.append(Optimize1qGatesDecomposition())
         qc = decomposer.run(qc)
 
     # Step 1. Convert into simulator basis gates
@@ -60,37 +130,25 @@ def get_noisy_fidelity(qc, coupling_map, sqrt_iswap_basis=False):
     # Step 2. Create Noise Model, with instruction durations
     # T1 and T2 values for all qubits
     N = coupling_map.size()
-    T1s = [T1] * N
-    T2s = [T2] * N
-
     # (inst, qubits, time)
     instruction_durations = []
 
-    # Add errors to noise model
-    noise_thermal = NoiseModel(basis_gates=basis_gates)
-    for j in range(N):
-        error_u3 = thermal_relaxation_error(T1s[j], T2s[j], time_u3)
-        noise_thermal.add_quantum_error(error_u3, ["u1", "u2", "u3", "u"], [j])
-        instruction_durations.append(("u", j, time_u3))
-        instruction_durations.append(("u3", j, time_u3))
+    # 2A. Build noise model
+    builder = NoiseModelBuilder(basis_gates, coupling_map)
+    builder.construct_basic_device_model(p_depol1=p1, p_depol2=p2, t1=T1, t2=T2)
+    noise_model = builder.noise_model
 
+    # 2B. Set up Instruction Durations
+    for j in range(N):
+        instruction_durations.append(("u", j, time_u3))
     for j, k in coupling_map:
-        error_cx = thermal_relaxation_error(T1s[j], T2s[j], time_cx).tensor(
-            thermal_relaxation_error(T1s[k], T1s[k], time_cx)
-        )
-        error_rxx = thermal_relaxation_error(T1s[j], T2s[j], time_rxx).tensor(
-            thermal_relaxation_error(T1s[k], T1s[k], time_rxx)
-        )
-        noise_thermal.add_quantum_error(error_cx, "cx", [j, k])
-        noise_thermal.add_quantum_error(error_rxx, ["rxx", "ryy"], [j, k])
         instruction_durations.append(("cx", (j, k), time_cx))
         instruction_durations.append(("rxx", (j, k), time_rxx))
         instruction_durations.append(("ryy", (j, k), time_rxx))
-
-    # print(noise_thermal)  ####
-
     instruction_durations.append(("save_density_matrix", list(range(N)), 0.0))
-    noisy_simulator = AerSimulator(noise_model=noise_thermal)
+
+    # 2C. Create noisy simulator
+    noisy_simulator = AerSimulator(noise_model=noise_model)
 
     # Step 3. transpile with scheduling and durations
     circ = transpile(
@@ -107,8 +165,8 @@ def get_noisy_fidelity(qc, coupling_map, sqrt_iswap_basis=False):
     pm.append(ASAPSchedule())
     pm.append(
         RelaxationNoisePass(
-            t1s=T1s,
-            t2s=T2s,
+            t1s=[T1] * N,
+            t2s=[T2] * N,
             dt=1e-9,
             op_types=[Delay],
         )
