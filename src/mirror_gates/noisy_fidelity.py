@@ -1,6 +1,8 @@
 """Noisy fidelity of a circuit."""
+import numpy as np
 from qiskit import transpile
 from qiskit.circuit import Delay
+from qiskit.converters import circuit_to_dag
 from qiskit.quantum_info import state_fidelity
 from qiskit.transpiler import PassManager
 from qiskit.transpiler.passes import ASAPSchedule, Optimize1qGatesDecomposition
@@ -14,6 +16,7 @@ from qiskit_aer.noise import (
     thermal_relaxation_error,
 )
 
+from mirror_gates.logging import transpile_benchy_logger
 from mirror_gates.sqiswap_decomposer import SiSwapDecomposePass
 
 # See Github Issue: ...
@@ -95,8 +98,18 @@ class NoiseModelBuilder:
             )
 
 
+def heuristic_fidelity(N, duration):
+    """Get heuristic fidelity of a circuit."""
+    decay_factor = (1 / T1 + 1 / T2) * duration
+    single_qubit_fidelity = np.exp(-decay_factor)
+    total_fidelity = single_qubit_fidelity**N
+    return total_fidelity
+
+
 def get_noisy_fidelity(qc, coupling_map, sqrt_iswap_basis=False):
     """Get noisy fidelity of a circuit.
+
+    NOTE: if qc is too big, will use heuristic fidelity function.
 
     Args:
         qc (QuantumCircuit): circuit to run, assumes all gates are consolidated
@@ -106,39 +119,17 @@ def get_noisy_fidelity(qc, coupling_map, sqrt_iswap_basis=False):
         fidelity (float): noisy fidelity of circuit
         duration (int): duration of circuit
         circ (QuantumCircuit): transpiled circuit
+        expected_fidelity (float): expected fidelity of circuit
     """
     N = coupling_map.size()
+    num_active = len(list(circuit_to_dag(qc).idle_wires())) - qc.num_clbits
     basis_gates = ["cx", "u", "rxx", "ryy", "id"]
 
-    # Step 0. Given consolidated circuit, decompose into basis gates
-    if sqrt_iswap_basis:
-        decomposer = PassManager()
-        decomposer.append(SiSwapDecomposePass())
-        decomposer.append(Optimize1qGatesDecomposition())
-        qc = decomposer.run(qc)
+    # Step 0. Create Noise Model
 
-    # Step 1. Convert into simulator basis gates
-    # simulator = Aer.get_backend("density_matrix_gpu")
-    simulator = QasmSimulator(method="density_matrix")
-    circ = transpile(
-        qc,
-        simulator,
-        basis_gates=basis_gates,
-        coupling_map=coupling_map,
-    )
-
-    # Step 2. Create Noise Model, with instruction durations
-    # T1 and T2 values for all qubits
-    N = coupling_map.size()
+    # 0A. Set up Instruction Durations
     # (inst, qubits, time)
     instruction_durations = []
-
-    # 2A. Build noise model
-    builder = NoiseModelBuilder(basis_gates, coupling_map)
-    builder.construct_basic_device_model(p_depol1=p1, p_depol2=p2, t1=T1, t2=T2)
-    noise_model = builder.noise_model
-
-    # 2B. Set up Instruction Durations
     for j in range(N):
         instruction_durations.append(("u", j, time_u3))
     for j, k in coupling_map:
@@ -147,8 +138,46 @@ def get_noisy_fidelity(qc, coupling_map, sqrt_iswap_basis=False):
         instruction_durations.append(("ryy", (j, k), time_rxx))
     instruction_durations.append(("save_density_matrix", list(range(N)), 0.0))
 
-    # 2C. Create noisy simulator
+    # 0B. If circuit is too big, use heuristic fidelity function
+    # Use heuristic fidelity function
+    circ = transpile(
+        qc,
+        basis_gates=basis_gates,
+        instruction_durations=instruction_durations,
+        scheduling_method="asap",
+        coupling_map=coupling_map,
+    )
+    duration = circ.duration
+    expected_fidelity = heuristic_fidelity(num_active, duration)
+    if N > 10:
+        return 0, duration, circ, expected_fidelity
+    else:
+        transpile_benchy_logger.debug(f"Expected fidelity: {expected_fidelity:.4g}")
+
+    # 0C. Build noise model
+    builder = NoiseModelBuilder(basis_gates, coupling_map)
+    builder.construct_basic_device_model(p_depol1=p1, p_depol2=p2, t1=T1, t2=T2)
+    noise_model = builder.noise_model
+
+    # 0D. Create noisy simulator
     noisy_simulator = AerSimulator(noise_model=noise_model)
+
+    # Step 1. Given consolidated circuit, decompose into basis gates
+    if sqrt_iswap_basis:
+        decomposer = PassManager()
+        decomposer.append(SiSwapDecomposePass())
+        decomposer.append(Optimize1qGatesDecomposition())
+        qc = decomposer.run(qc)
+
+    # Step 2. Convert into simulator basis gates
+    # simulator = Aer.get_backend("density_matrix_gpu")
+    simulator = QasmSimulator(method="density_matrix")
+    circ = transpile(
+        qc,
+        simulator,
+        basis_gates=basis_gates,
+        coupling_map=coupling_map,
+    )
 
     # Step 3. transpile with scheduling and durations
     circ = transpile(
@@ -181,4 +210,4 @@ def get_noisy_fidelity(qc, coupling_map, sqrt_iswap_basis=False):
     noisy_result = noisy_simulator.run(circ).result().data()["density_matrix"]
     fidelity = state_fidelity(perfect_result, noisy_result)
 
-    return fidelity, duration, circ
+    return fidelity, duration, circ, expected_fidelity

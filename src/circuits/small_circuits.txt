@@ -1,7 +1,6 @@
 toffoli_n3
 fredkin_n3
 dj_n8
-qft_n8
+qft_n4
 qftentangled_n8
-qpeexact_n8
 ae_n8
