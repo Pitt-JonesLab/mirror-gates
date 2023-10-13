@@ -11,10 +11,11 @@ from qiskit_aer.noise import NoiseModel, RelaxationNoisePass, thermal_relaxation
 
 from mirror_gates.sqiswap_decomposer import SiSwapDecomposePass
 
+# See Github Issue: ...
 # 80 microsec (in nanoseconds)
-T1 = 80e3
+T1 = 80e2
 # 80 microsec
-T2 = 80e3
+T2 = 80e2
 
 # Instruction times (in nanoseconds)
 time_u3 = 25
