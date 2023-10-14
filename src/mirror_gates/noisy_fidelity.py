@@ -19,7 +19,6 @@ from qiskit_aer.noise import (
 from mirror_gates.logging import transpile_benchy_logger
 from mirror_gates.sqiswap_decomposer import SiSwapDecomposePass
 
-# See Github Issue: ...
 # 80 microsec (in nanoseconds)
 T1 = 80e3
 # 80 microsec
@@ -98,8 +97,12 @@ class NoiseModelBuilder:
             )
 
 
-def heuristic_fidelity(N, duration):
+def heuristic_fidelity(N, duration, T1=None, T2=None):
     """Get heuristic fidelity of a circuit."""
+    if T1 is None:
+        T1 = 80e3
+    if T2 is None:
+        T2 = 80e3
     decay_factor = (1 / T1 + 1 / T2) * duration
     single_qubit_fidelity = np.exp(-decay_factor)
     total_fidelity = single_qubit_fidelity**N
