@@ -11,5 +11,3 @@ portfolioqaoa_n16
 qftentangled_16
 qpeexact_16
 ae_16
-wstate_n27
-bv_n30

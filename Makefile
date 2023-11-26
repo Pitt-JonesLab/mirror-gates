@@ -14,6 +14,8 @@ venv-setup:
 	@$(PIP) install --upgrade pip
 
 # Install main dependencies
+# XXX: make init currently unstable due to some package conflicts
+# instead use make dev-init
 init: venv-setup
 	$(PIP) install -e .[core]
 
@@ -21,6 +23,8 @@ init: venv-setup
 # NOTE: Instead of pip installing 'core' dependencies directly from git repositories,
 # the relevant repositories are cloned into a sibling directory and installed in editable mode.
 dev-init: venv-setup install-dev-deps pre-commit-setup transpile_benchy monodromy
+	$(PIP) install qiskit==0.43.3
+	$(PIP) install git+https://github.com/evmckinney9/qiskit-evmckinney9.git@sqisw-gate
 
 # force using my fork which includes the incomplete sqiswap decomposition PR
 install-dev-deps:
@@ -34,10 +38,10 @@ pre-commit-setup:
 transpile_benchy:
 	if [ -d "../transpile_benchy" ]; then \
 		echo "Repository already exists. Updating with latest changes."; \
-		cd ../transpile_benchy && git pull && git checkout no-mqt; \
+		cd ../transpile_benchy && git pull && git checkout main; \
 	else \
 		cd .. && git clone https://github.com/evmckinney9/transpile_benchy.git --recurse-submodules; \
-		cd transpile_benchy && git checkout no-mqt; \
+		cd transpile_benchy && git checkout main; \
 	fi
 	$(PIP) install -e ../transpile_benchy --quiet
 

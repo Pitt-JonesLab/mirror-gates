@@ -1,0 +1,4 @@
+fullecp_n8
+fullcnot_n8
+fulliswap_n8
+fullsqiswap_n8

@@ -11,12 +11,14 @@ requires-python = ">=3.9"
 dependencies = [
     "scipy",
     "qutip",
-    "numpy",
-    # "qiskit-aer",
-    "qiskit-terra @ git+https://github.com/evmckinney9/qiskit-evmckinney9.git@sqisw-gate",
+    "numpy==1.23.5",
     "weylchamber",
+    "networkx",
     "matplotlib",
     "retworkx",
+    "ipykernel",
+    "qiskit==0.43.3",
+    "qiskit-terra @ git+https://github.com/evmckinney9/qiskit-evmckinney9.git@sqisw-gate",
     "networkx",
 ]
 
@@ -26,7 +28,6 @@ core = [
     "transpile_benchy @ git+https://github.com/evmckinney9/transpile_benchy.git@no-mqt",
 ]
 dev = [
-    "ipykernel",
     "pre-commit",
     "pylatexenc",
     "ipympl",

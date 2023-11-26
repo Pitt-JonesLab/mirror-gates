@@ -24,6 +24,7 @@ from mirror_gates.fast_unitary import FastConsolidateBlocks
 from mirror_gates.mirage import ParallelMirage
 from mirror_gates.sabre_layout_v2 import SabreLayout
 from mirror_gates.sqiswap_equiv import sel  # noqa: F401
+from mirror_gates.sycamore import syc  # noqa: F401
 from mirror_gates.utilities import (
     AssignAllParameters,
     RemoveAllMeasurements,
@@ -51,6 +52,7 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         layout_trials=None,
         fb_iters=None,
         swap_trials=None,
+        syc_basis=False,
     ):
         """Initialize the pass manager."""
         super().__init__(name=self.name)
@@ -64,12 +66,20 @@ class CustomLayoutRoutingManager(CustomPassManager, ABC):
         self.use_fast_settings = use_fast_settings
         self.coupling = coupling
         self.cx_basis = cx_basis
+        self.syc_basis = syc_basis
         self.logger = logger
-        if self.cx_basis:
+        if self.cx_basis and not self.syc_basis:
             self.basis_gate = CXGate()
             self.gate_costs = 1.0
             self.name += r"-$\texttt{CNOT}$"
             self.basis_gates = ["u", "cx", "id"]
+        elif self.syc_basis:
+            # raise NotImplementedError
+            self.basis_gate = syc
+            self.gate_costs = 1.0
+            self.name += r"-$\texttt{SYC}$"
+            # XXX
+            self.basis_gates = ["u", "xx_plus_yy", "id"]
         else:
             self.basis_gate = iSwapGate().power(1 / 2)
             self.gate_costs = 0.5
@@ -174,6 +184,7 @@ class Mirage(CustomLayoutRoutingManager):
         fb_iters=None,
         swap_trials=None,
         no_vf2=False,
+        syc_basis=False,
     ):
         """Initialize the pass manager.
 
@@ -193,6 +204,7 @@ class Mirage(CustomLayoutRoutingManager):
             layout_trials=layout_trials,
             fb_iters=fb_iters,
             swap_trials=swap_trials,
+            syc_basis=syc_basis,
         )
 
     def build_main_stage(self, **kwargs):
@@ -220,7 +232,7 @@ class Mirage(CustomLayoutRoutingManager):
             seed=self.seed,
             anneal_routing=self.anneal_routing,
             max_iterations=self.fb_iters,
-            # parallel=False,  # XXX turn off because of BrokenPipeError
+            parallel=self.parallel,  # XXX turn off because of BrokenPipeError
         )
 
         # VF2Layout
@@ -251,11 +263,18 @@ class Mirage(CustomLayoutRoutingManager):
 class QiskitLevel3(CustomLayoutRoutingManager):
     """Qiskit level 3 pass manager."""
 
-    def __init__(self, coupling, cx_basis=False, python_sabre=False, name=None):
+    def __init__(
+        self,
+        coupling,
+        cx_basis=False,
+        python_sabre=False,
+        name=None,
+        syc_basis=False,
+    ):
         """Initialize the pass manager."""
         self.name = name or "Qiskit"
         self.python_sabre = python_sabre
-        super().__init__(coupling, cx_basis=cx_basis)
+        super().__init__(coupling, cx_basis=cx_basis, syc_basis=syc_basis)
 
     def stage_builder(self):
         """Build stages in a defined sequence."""
