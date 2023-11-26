@@ -1,5 +1,5 @@
 # Variables
-PYTHON_VERSION = python3.10
+PYTHON_VERSION = python3.9
 PIP = .venv/bin/pip
 PYTEST = .venv/bin/pytest
 PRE_COMMIT = .venv/bin/pre-commit
