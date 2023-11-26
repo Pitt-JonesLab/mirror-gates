@@ -12,11 +12,13 @@ dependencies = [
     "scipy",
     "qutip",
     "numpy==1.23.5",
-    "qiskit",
-    "qiskit-aer",
     "weylchamber",
+    "networkx",
     "matplotlib",
     "retworkx",
+    "ipykernel",
+    "qiskit==0.43.3",
+    "qiskit-terra @ git+https://github.com/evmckinney9/qiskit-evmckinney9.git@sqisw-gate",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +27,6 @@ core = [
     "transpile_benchy @ git+https://github.com/evmckinney9/transpile_benchy.git",
 ]
 dev = [
-    "ipykernel",
     "pre-commit",
     "pylatexenc",
     "ipympl",

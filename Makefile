@@ -1,5 +1,5 @@
 # Variables
-PYTHON_VERSION = python3.10
+PYTHON_VERSION = python3.9
 PIP = .venv/bin/pip
 PYTEST = .venv/bin/pytest
 PRE_COMMIT = .venv/bin/pre-commit
@@ -14,13 +14,16 @@ venv-setup:
 	@$(PIP) install --upgrade pip
 
 # Install main dependencies
+# XXX: make init currently unstable due to some package conflicts
+# instead use make dev-init
 init: venv-setup
 	$(PIP) install -e .[core]
 
 # Setup development environment
 # includes a temporary fix for pytket-qiskit (https://github.com/CQCL/tket/issues/1023)
 dev-init: venv-setup install-dev-deps pre-commit-setup transpile_benchy monodromy
-	$(PIP) install --upgrade pytket && $(PIP) install --upgrade pytket-qiskit
+	$(PIP) install qiskit==0.43.3
+	$(PIP) install git+https://github.com/evmckinney9/qiskit-evmckinney9.git@sqisw-gate
 
 install-dev-deps:
 	$(PIP) install -e .[dev] --quiet
