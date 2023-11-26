@@ -19,12 +19,13 @@ dependencies = [
     "ipykernel",
     "qiskit==0.43.3",
     "qiskit-terra @ git+https://github.com/evmckinney9/qiskit-evmckinney9.git@sqisw-gate",
+    "networkx",
 ]
 
 [project.optional-dependencies]
 core = [
     "monodromy @ git+https://github.com/evmckinney9/monodromy.git",
-    "transpile_benchy @ git+https://github.com/evmckinney9/transpile_benchy.git",
+    "transpile_benchy @ git+https://github.com/evmckinney9/transpile_benchy.git@no-mqt",
 ]
 dev = [
     "pre-commit",

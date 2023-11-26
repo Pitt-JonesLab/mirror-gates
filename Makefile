@@ -20,13 +20,15 @@ init: venv-setup
 	$(PIP) install -e .[core]
 
 # Setup development environment
-# includes a temporary fix for pytket-qiskit (https://github.com/CQCL/tket/issues/1023)
+# NOTE: Instead of pip installing 'core' dependencies directly from git repositories,
+# the relevant repositories are cloned into a sibling directory and installed in editable mode.
 dev-init: venv-setup install-dev-deps pre-commit-setup transpile_benchy monodromy
 	$(PIP) install qiskit==0.43.3
 	$(PIP) install git+https://github.com/evmckinney9/qiskit-evmckinney9.git@sqisw-gate
 
+# force using my fork which includes the incomplete sqiswap decomposition PR
 install-dev-deps:
-	$(PIP) install -e .[dev] --quiet
+	$(PIP) install -e .[dev]
 
 pre-commit-setup:
 	@$(PRE_COMMIT) install
@@ -53,6 +55,7 @@ monodromy:
 		cd monodromy; \
 	fi
 	$(PIP) install -e ../monodromy --quiet
+
 clean: movefigs
 	@find ./ -type f -name '*.pyc' -exec rm -f {} \; 2>/dev/null || true
 	@find ./ -type d -name '__pycache__' -exec rm -rf {} \; 2>/dev/null || true
