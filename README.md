@@ -12,6 +12,7 @@
 
 - **Objective**: Optimize quantum transpilation by unifying the layout and routing stages with gate decomposition.
 - **Strategy**: Employ the mirror gate of $\texttt{U}$, represented as $\texttt{U} \cdot \texttt{SWAP}$, to achieve more cost-efficient routing without altering decomposition costs. In certain cases, it can even reduce decomposition expenses.
+- [Linkedin post, Oct'25](https://www.linkedin.com/posts/evm9_quantumcomputing-activity-7379374079528685568-uCuU)
 
 ## 🌟 Key Features
 
@@ -132,3 +133,4 @@ Additional utility commands available in the Makefile:
     year = {2023}
 }
 ```
+
